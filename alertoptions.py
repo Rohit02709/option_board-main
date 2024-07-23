@@ -22,6 +22,7 @@ exp = datetime.strptime(ex, '%d-%b-%Y').strftime('%d-%m-%Y')
 try:
     option = derivatives.nse_live_option_chain(index, exp)
     o = option[['CALLS_OI', 'CALLS_Chng_in_OI', 'CALLS_LTP', 'Strike_Price', 'PUTS_LTP', 'PUTS_Chng_in_OI', 'PUTS_OI']].set_index('Strike_Price')
+    st.write("Option Chain Data:", o)
 
     if index == 'NIFTY':
         cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last']
@@ -35,6 +36,7 @@ try:
         cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY FINANCIAL SERVICES', 'last']
         range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
         oi = o.loc[range[1]:range[0]]
+    st.write("Filtered OI Data:", oi)
 
     with tab1:
         st.subheader('Option Chain')
@@ -71,12 +73,14 @@ try:
         df['Volume'] = df['CALLS_OI'] + df['PUTS_OI']
         df['Avg_Volume'] = avg_vol
         df['Avg_OI'] = avg_oi
+        st.write("Data with VWAP and RSI:", df)
 
         conditions_met = df[(df['CALLS_LTP'] > df['VWAP']) &
                             (df['Volume'] > 1.5 * df['Avg_Volume']) &
                             (df['RSI'] > 60) &
                             (df['CALLS_OI'] < df['Avg_OI']) &
                             (abs(df['CALLS_OI'] - df['Avg_OI']) > 0.01 * df['Avg_OI'])]
+        st.write("Conditions Met:", conditions_met)
 
         itm_calls = conditions_met[conditions_met.index > cmp].head(7)
         itm_puts = conditions_met[conditions_met.index < cmp].tail(7)
@@ -89,6 +93,7 @@ try:
     average_oi = o['CALLS_OI'].rolling(window=20).mean()
 
     valid_strikes = filter_strikes(o, cmp, average_volume, average_oi)
+    st.write("Valid Strikes:", valid_strikes)
 
     with tab3:
         st.subheader('Ratio Spread Strategy')
@@ -103,6 +108,17 @@ try:
     col1.metric('**Spot Price**', cmp)
     pcr = np.round(o.PUTS_OI.sum() / o.CALLS_OI.sum(), 2)
     col2.metric('**PCR:**', pcr)
+
+    # Display buy price and strike price
+    if not valid_strikes.empty:
+        best_strike = valid_strikes.loc[valid_strikes['CALLS_LTP'].idxmax()]
+        buy_price = best_strike['CALLS_LTP']
+        strike_price = best_strike.name
+
+        st.write("**Buy Price:**", buy_price)
+        st.write("**Strike Price:**", strike_price)
+    else:
+        st.write("No valid strikes found for the alert conditions.")
 
 except Exception as e:
     st.text(f'Please select accurate expiry date. Error: {e}')
