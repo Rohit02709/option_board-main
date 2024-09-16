@@ -67,21 +67,27 @@ try:
         def generate_signal(row):
             """
             Function to generate buy/sell signals based on OI change
-            Buy signal: Significant increase in PUT OI or decrease in CALL OI
-            Sell signal: Significant increase in CALL OI or decrease in PUT OI
+            Buy CE: Significant increase in PUT OI or decrease in CALL OI
+            Buy PE: Significant increase in CALL OI or decrease in PUT OI
             """
             if row['PUTS_Chng_in_OI'] > row['CALLS_Chng_in_OI'] * 2:
-                return "BUY"
+                return "BUY CE"
             elif row['CALLS_Chng_in_OI'] > row['PUTS_Chng_in_OI'] * 2:
-                return "SELL"
+                return "BUY PE"
             else:
                 return "HOLD"
 
         oi['Signal'] = oi.apply(generate_signal, axis=1)
 
-        # Highlight the buy/sell/hold signals
-        signal_table = oi[['CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']].style.applymap(
-            lambda val: 'color: green' if val == 'BUY' else 'color: red' if val == 'SELL' else 'color: black',
+        # Sort by the absolute value of change in OI (largest change first)
+        oi_sorted = oi.reindex(oi[['CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']].abs().sum(axis=1).sort_values(ascending=False).index)
+
+        # Select only the top 5 strikes with the most significant change in OI
+        oi_top_5 = oi_sorted.head(5)
+
+        # Highlight the buy/sell signals and whether to buy CE or PE
+        signal_table = oi_top_5[['CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']].style.applymap(
+            lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
             subset=['Signal']
         )
 
