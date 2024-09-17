@@ -1,4 +1,4 @@
-# import all important libraries
+# Import all important libraries
 from nselib import derivatives
 from nselib import capital_market
 import matplotlib.pyplot as plt
@@ -9,29 +9,16 @@ import streamlit as st
 import time
 
 # Initialize global variables to store captured data
-if 'data_capture' not in st.session_state:
-    st.session_state.data_capture = []
-if 'time_stops' not in st.session_state:
-    st.session_state.time_stops = []
+if 'signal_data' not in st.session_state:
+    st.session_state.signal_data = []
+if 'capture_times' not in st.session_state:
+    st.session_state.capture_times = []
 
-# Function to capture data
-def capture_data(index, exp):
+# Function to capture buy/sell signals
+def capture_signals(index, exp):
     try:
         option = derivatives.nse_live_option_chain(index, exp)
         o = option[['CALLS_OI', 'CALLS_Chng_in_OI', 'CALLS_LTP', 'Strike_Price', 'PUTS_LTP', 'PUTS_Chng_in_OI', 'PUTS_OI']].set_index('Strike_Price')
-        
-        if index == 'NIFTY':
-            cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last']
-            range = (int(np.round(cmp / 50.0)) * 50) + 1000, (int(np.round(cmp / 50.0)) * 50) - 1000
-            oi = o.loc[range[1]:range[0]]
-        elif index == 'BANKNIFTY':
-            cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY BANK', 'last']
-            range = (int(np.round(cmp / 100.0)) * 100) + 1500, (int(np.round(cmp / 100.0)) * 100) - 1500
-            oi = o.loc[range[1]:range[0]]
-        else:
-            cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY FINANCIAL SERVICES', 'last']
-            range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
-            oi = o.loc[range[1]:range[0]]
 
         # Generate signals
         def generate_signal(row):
@@ -41,32 +28,39 @@ def capture_data(index, exp):
                 return "BUY PE"
             else:
                 return "HOLD"
-        oi['Signal'] = oi.apply(generate_signal, axis=1)
+        
+        o['Signal'] = o.apply(generate_signal, axis=1)
+        
+        # Sort by the absolute value of change in OI (largest change first)
+        o_sorted = o.reindex(o[['CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']].abs().sum(axis=1).sort_values(ascending=False).index)
+        # Select only the top 5 strikes with the most significant change in OI
+        o_top_5 = o_sorted.head(5)
 
-        # Append data to capture list
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        for _, row in oi.iterrows():
-            st.session_state.data_capture.append([
+        for _, row in o_top_5.iterrows():
+            st.session_state.signal_data.append([
                 timestamp, row['CALLS_LTP'], row['CALLS_OI'], row['CALLS_Chng_in_OI'], 
                 row['PUTS_LTP'], row['PUTS_OI'], row['PUTS_Chng_in_OI'], row['Signal']
             ])
-        # Add current time stop
-        st.session_state.time_stops.append([timestamp, "Captured"])
+        # Add current time capture
+        st.session_state.capture_times.append([timestamp, "Captured"])
     except Exception as e:
         st.text(f"An error occurred: {e}")
 
-# add title of the web-app
+# Add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
 st.header('Option Analysis', divider='rainbow')
-# create some tabs for option analysis
+
+# Create some tabs for option analysis
 tab1, tab2, tab3, tab4 = st.tabs(["Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal"])
-# create side bar to select index instrument and for expiry day selection
+
+# Create sidebar to select index instrument and for expiry day selection
 index = st.sidebar.selectbox("Select index name", ('NIFTY', "BANKNIFTY", "FINNIFTY"))
 ex = st.sidebar.selectbox('Select expiry date', derivatives.expiry_dates_option_index()[index])
 exp = datetime.strptime(ex, '%d-%b-%Y').strftime('%d-%m-%Y')
 
-# Capture data every 3 minutes
-capture_data(index, exp)
+# Capture signals every 3 minutes
+capture_signals(index, exp)
 
 # Tab 1: Option Chain
 with tab1:
@@ -74,6 +68,8 @@ with tab1:
     try:
         option = derivatives.nse_live_option_chain(index, exp)
         o = option[['CALLS_OI', 'CALLS_Chng_in_OI', 'CALLS_LTP', 'Strike_Price', 'PUTS_LTP', 'PUTS_Chng_in_OI', 'PUTS_OI']].set_index('Strike_Price')
+
+        # Calculating spot price and setting up range for option analysis
         if index == 'NIFTY':
             cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last']
             range = (int(np.round(cmp / 50.0)) * 50) + 1000, (int(np.round(cmp / 50.0)) * 50) - 1000
@@ -86,6 +82,7 @@ with tab1:
             cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY FINANCIAL SERVICES', 'last']
             range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
             oi = o.loc[range[1]:range[0]]
+        
         st.table(oi.style.highlight_max(axis=0, subset=['CALLS_OI', 'PUTS_OI', 'CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']))
     except Exception as e:
         st.text(f"An error occurred: {e}")
@@ -113,21 +110,25 @@ with tab2:
 # Tab 4: OI-based Buy/Sell Signal
 with tab4:
     st.subheader('OI-based Buy/Sell Signal')
+    
     # Create DataFrame from captured data
-    df_capture = pd.DataFrame(
-        st.session_state.data_capture, 
+    df_signals = pd.DataFrame(
+        st.session_state.signal_data, 
         columns=['Time', 'CALLS_LTP', 'CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_LTP', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']
     )
+    
     # Display the signal table
-    st.table(df_capture.style.applymap(
+    st.write("**Captured Buy/Sell Signals**")
+    signal_table = df_signals.style.applymap(
         lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
         subset=['Signal']
-    ))
+    )
+    st.table(signal_table)
     
-    # Display the time stop table
-    df_stops = pd.DataFrame(st.session_state.time_stops, columns=['Time', 'Stop Reason'])
-    st.write("**Time Stops**")
-    st.table(df_stops)
+    # Display the time capture table
+    df_times = pd.DataFrame(st.session_state.capture_times, columns=['Time', 'Reason'])
+    st.write("**Capture Times**")
+    st.table(df_times)
 
 # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
 try:
