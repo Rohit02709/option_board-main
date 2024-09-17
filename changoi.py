@@ -99,7 +99,10 @@ with tab1:
             range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
             oi = o.loc[range[1]:range[0]]
         
-        st.table(oi.style.highlight_max(axis=0, subset=['CALLS_OI', 'PUTS_OI', 'CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']))
+        st.table(oi.style.format({
+            'CALLS_LTP': '{:,.2f}', 'CALLS_OI': '{:,.2f}', 'CALLS_Chng_in_OI': '{:,.2f}', 
+            'PUTS_LTP': '{:,.2f}', 'PUTS_OI': '{:,.2f}', 'PUTS_Chng_in_OI': '{:,.2f}'
+        }).highlight_max(axis=0, subset=['CALLS_OI', 'PUTS_OI', 'CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']))
     except Exception as e:
         st.text(f"An error occurred: {e}")
 
@@ -131,34 +134,53 @@ with tab4:
     df_signals = pd.DataFrame(
         st.session_state.signal_data, 
         columns=['Time', 'CALLS_LTP', 'CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_LTP', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']
-    )
+    ).round(2)
     
     # Display the signal table
     st.write("**Captured Buy/Sell Signals**")
-    signal_table = df_signals.style.applymap(
+    signal_table = df_signals.style.format({
+        'CALLS_LTP': '{:,.2f}', 'CALLS_OI': '{:,.2f}', 'CALLS_Chng_in_OI': '{:,.2f}', 
+        'PUTS_LTP': '{:,.2f}', 'PUTS_OI': '{:,.2f}', 'PUTS_Chng_in_OI': '{:,.2f}'
+    }).applymap(
         lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
         subset=['Signal']
-    )
+    ).set_table_styles([
+        dict(selector='th', props=[('text-align', 'center')]),  # Center-align header text
+        dict(selector='td', props=[('text-align', 'center')])   # Center-align cell text
+    ]).set_properties(**{'width': '100px'})  # Adjust column width
+
     st.table(signal_table)
 
     # Create DataFrame from captured buy signals
     df_buy_signals = pd.DataFrame(
         st.session_state.buy_signal_data, 
         columns=['Time', 'CALLS_LTP', 'CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_LTP', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']
-    )
+    ).round(2)
 
     # Display the buy signal table
     st.write("**Captured Buy Signals Only**")
-    buy_signal_table = df_buy_signals.style.applymap(
+    buy_signal_table = df_buy_signals.style.format({
+        'CALLS_LTP': '{:,.2f}', 'CALLS_OI': '{:,.2f}', 'CALLS_Chng_in_OI': '{:,.2f}', 
+        'PUTS_LTP': '{:,.2f}', 'PUTS_OI': '{:,.2f}', 'PUTS_Chng_in_OI': '{:,.2f}'
+    }).applymap(
         lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
         subset=['Signal']
-    )
+    ).set_table_styles([
+        dict(selector='th', props=[('text-align', 'center')]),  # Center-align header text
+        dict(selector='td', props=[('text-align', 'center')])   # Center-align cell text
+    ]).set_properties(**{'width': '100px'})  # Adjust column width
+    
     st.table(buy_signal_table)
     
     # Display the time capture table
     df_times = pd.DataFrame(st.session_state.capture_times, columns=['Time', 'Reason'])
     st.write("**Capture Times**")
-    st.table(df_times)
+    time_capture_table = df_times.style.set_table_styles([
+        dict(selector='th', props=[('text-align', 'center')]),  # Center-align header text
+        dict(selector='td', props=[('text-align', 'center')])   # Center-align cell text
+    ]).set_properties(**{'width': '150px'})  # Adjust column width
+    
+    st.table(time_capture_table)
 
 # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
 try:
