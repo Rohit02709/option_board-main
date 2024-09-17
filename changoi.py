@@ -2,15 +2,18 @@
 from nselib import derivatives
 from nselib import capital_market
 import matplotlib.pyplot as plt
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import streamlit as st
 import time
+import pytz
 
 # Initialize global variables to store captured data
 if 'signal_data' not in st.session_state:
     st.session_state.signal_data = []
+if 'buy_signal_data' not in st.session_state:
+    st.session_state.buy_signal_data = []
 if 'capture_times' not in st.session_state:
     st.session_state.capture_times = []
 
@@ -36,12 +39,25 @@ def capture_signals(index, exp):
         # Select only the top 5 strikes with the most significant change in OI
         o_top_5 = o_sorted.head(5)
 
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Get current time in IST
+        ist = pytz.timezone('Asia/Kolkata')
+        timestamp = datetime.now(ist).strftime('%Y-%m-%d %H:%M:%S')
+
+        # Append all signals
         for _, row in o_top_5.iterrows():
             st.session_state.signal_data.append([
                 timestamp, row['CALLS_LTP'], row['CALLS_OI'], row['CALLS_Chng_in_OI'], 
                 row['PUTS_LTP'], row['PUTS_OI'], row['PUTS_Chng_in_OI'], row['Signal']
             ])
+        
+        # Append only "BUY" signals
+        buy_signals = o_top_5[o_top_5['Signal'].str.contains('BUY')]
+        for _, row in buy_signals.iterrows():
+            st.session_state.buy_signal_data.append([
+                timestamp, row['CALLS_LTP'], row['CALLS_OI'], row['CALLS_Chng_in_OI'], 
+                row['PUTS_LTP'], row['PUTS_OI'], row['PUTS_Chng_in_OI'], row['Signal']
+            ])
+
         # Add current time capture
         st.session_state.capture_times.append([timestamp, "Captured"])
     except Exception as e:
@@ -110,7 +126,7 @@ with tab2:
 # Tab 4: OI-based Buy/Sell Signal
 with tab4:
     st.subheader('OI-based Buy/Sell Signal')
-    
+
     # Create DataFrame from captured data
     df_signals = pd.DataFrame(
         st.session_state.signal_data, 
@@ -124,6 +140,20 @@ with tab4:
         subset=['Signal']
     )
     st.table(signal_table)
+
+    # Create DataFrame from captured buy signals
+    df_buy_signals = pd.DataFrame(
+        st.session_state.buy_signal_data, 
+        columns=['Time', 'CALLS_LTP', 'CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_LTP', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']
+    )
+
+    # Display the buy signal table
+    st.write("**Captured Buy Signals Only**")
+    buy_signal_table = df_buy_signals.style.applymap(
+        lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
+        subset=['Signal']
+    )
+    st.table(buy_signal_table)
     
     # Display the time capture table
     df_times = pd.DataFrame(st.session_state.capture_times, columns=['Time', 'Reason'])
