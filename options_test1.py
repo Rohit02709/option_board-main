@@ -6,7 +6,6 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
-import time
 
 # Add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
@@ -27,15 +26,15 @@ try:
 
     # Calculating spot price and setting up range for option analysis
     if index == 'NIFTY':
-        cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last']
+        cmp = int(capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last'])
         range = (int(np.round(cmp / 50.0)) * 50) + 1000, (int(np.round(cmp / 50.0)) * 50) - 1000
         oi = o.loc[range[1]:range[0]]
     elif index == 'BANKNIFTY':
-        cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY BANK', 'last']
+        cmp = int(capital_market.market_watch_all_indices().set_index('index').loc['NIFTY BANK', 'last'])
         range = (int(np.round(cmp / 100.0)) * 100) + 1500, (int(np.round(cmp / 100.0)) * 100) - 1500
         oi = o.loc[range[1]:range[0]]
     else:
-        cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY FINANCIAL SERVICES', 'last']
+        cmp = int(capital_market.market_watch_all_indices().set_index('index').loc['NIFTY FINANCIAL SERVICES', 'last'])
         range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
         oi = o.loc[range[1]:range[0]]
 
@@ -63,8 +62,8 @@ try:
         st.subheader('OI-based Buy/Sell Signal (Intraday)')
 
         # Calculate percentage change in OI for calls and puts
-        oi['CALL_OI_%'] = (oi['CALLS_Chng_in_OI'] / oi['CALLS_OI'] * 100).round(1)  # Call OI % change with 1 decimal
-        oi['PUT_OI_%'] = (oi['PUTS_Chng_in_OI'] / oi['PUTS_OI'] * 100).round(1)      # Put OI % change with 1 decimal
+        oi['CALL_OI_%'] = ((oi['CALLS_Chng_in_OI'] / oi['CALLS_OI']) * 100).round(1)
+        oi['PUT_OI_%'] = ((oi['PUTS_Chng_in_OI'] / oi['PUTS_OI']) * 100).round(1)
 
         def intraday_signal(row):
             """
@@ -100,32 +99,4 @@ try:
         # Reset index to avoid non-unique index issue
         oi_top_5_reset = oi_top_5.reset_index()
 
-        # Display signals with shorter labels and percentages rounded to 1 decimal
-        signal_table = oi_top_5_reset[['Strike_Price', 'CALLS_OI', 'CALL_OI_%',
-                                       'CALLS_LTP', 'PUTS_LTP', 'PUT_OI_%',
-                                       'PUTS_OI', 'Signal']].style.applymap(
-            lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
-            subset=['Signal']
-        ).set_properties(
-            **{'text-align': 'center'}
-        ).format(
-            {'CALL_OI_%': "{:.1f}", 'PUT_OI_%': "{:.1f}"}  # Format percentage columns to 1 decimal point
-        )
-
-        # Display the table with full width and no scrollbars
-        st.table(signal_table)
-
-    # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
-    st.write(index)
-    col1, col2 = st.columns(2)
-    col1.metric('**Spot price**', cmp)
-    
-    pcr = np.round(o.PUTS_OI.sum() / o.CALLS_OI.sum(), 2)
-    col2.metric('**PCR:**', pcr)
-
-except Exception as e:
-    st.text(f"An error occurred: {e}")
-
-# Refresh every 2 minutes
-time.sleep(120)  # Wait for 120 seconds
-st.experimental_rerun()  # Re-run the script to refresh the data
+        # Display signals with shorter labels and percentages rounded to 
