@@ -7,7 +7,12 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import time
-
+hide_github_style = """
+        <style>
+        .css-1lsmgbg {display:none;}
+        </style>
+        """
+st.markdown(hide_github_style, unsafe_allow_html=True)
 # add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
 st.header('Option Analysis', divider='rainbow')
