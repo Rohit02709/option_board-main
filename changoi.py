@@ -46,16 +46,16 @@ def capture_signals(index, exp):
         # Append all signals
         for _, row in o_top_5.iterrows():
             st.session_state.signal_data.append([
-                timestamp, round(row['CALLS_LTP'], 2), round(row['CALLS_OI'], 2), round(row['CALLS_Chng_in_OI'], 2), 
-                round(row['PUTS_LTP'], 2), round(row['PUTS_OI'], 2), round(row['PUTS_Chng_in_OI'], 2), row['Signal']
+                timestamp, row['CALLS_LTP'], row['CALLS_OI'], row['CALLS_Chng_in_OI'], 
+                row['PUTS_LTP'], row['PUTS_OI'], row['PUTS_Chng_in_OI'], row['Signal']
             ])
         
         # Append only "BUY" signals
         buy_signals = o_top_5[o_top_5['Signal'].str.contains('BUY')]
         for _, row in buy_signals.iterrows():
             st.session_state.buy_signal_data.append([
-                timestamp, round(row['CALLS_LTP'], 2), round(row['CALLS_OI'], 2), round(row['CALLS_Chng_in_OI'], 2), 
-                round(row['PUTS_LTP'], 2), round(row['PUTS_OI'], 2), round(row['PUTS_Chng_in_OI'], 2), row['Signal']
+                timestamp, row['CALLS_LTP'], row['CALLS_OI'], row['CALLS_Chng_in_OI'], 
+                row['PUTS_LTP'], row['PUTS_OI'], row['PUTS_Chng_in_OI'], row['Signal']
             ])
 
         # Add current time capture
@@ -99,10 +99,7 @@ with tab1:
             range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
             oi = o.loc[range[1]:range[0]]
         
-        st.table(oi.style.format({
-            'CALLS_OI': '{:,.2f}', 'CALLS_Chng_in_OI': '{:,.2f}', 'CALLS_LTP': '{:,.2f}',
-            'PUTS_OI': '{:,.2f}', 'PUTS_Chng_in_OI': '{:,.2f}', 'PUTS_LTP': '{:,.2f}'
-        }).highlight_max(axis=0, subset=['CALLS_OI', 'PUTS_OI', 'CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']))
+        st.table(oi.style.highlight_max(axis=0, subset=['CALLS_OI', 'PUTS_OI', 'CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']))
     except Exception as e:
         st.text(f"An error occurred: {e}")
 
@@ -134,45 +131,44 @@ with tab4:
     df_signals = pd.DataFrame(
         st.session_state.signal_data, 
         columns=['Time', 'CALLS_LTP', 'CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_LTP', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']
-    ).round(2)
+    )
     
     # Display the signal table
     st.write("**Captured Buy/Sell Signals**")
     signal_table = df_signals.style.applymap(
         lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
         subset=['Signal']
-    ).format({
-        'CALLS_LTP': '{:,.2f}', 'CALLS_OI': '{:,.2f}', 'CALLS_Chng_in_OI': '{:,.2f}', 
-        'PUTS_LTP': '{:,.2f}', 'PUTS_OI': '{:,.2f}', 'PUTS_Chng_in_OI': '{:,.2f}'
-    })
-    
+    )
     st.table(signal_table)
 
-    # Display only "BUY" signals
+    # Create DataFrame from captured buy signals
     df_buy_signals = pd.DataFrame(
         st.session_state.buy_signal_data, 
         columns=['Time', 'CALLS_LTP', 'CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_LTP', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']
-    ).round(2)
-    
+    )
+
+    # Display the buy signal table
     st.write("**Captured Buy Signals Only**")
-    buy_signal_table = df_buy_signals[df_buy_signals['Signal'].str.contains('BUY')].style.format({
-        'CALLS_LTP': '{:,.2f}', 'CALLS_OI': '{:,.2f}', 'CALLS_Chng_in_OI': '{:,.2f}', 
-        'PUTS_LTP': '{:,.2f}', 'PUTS_OI': '{:,.2f}', 'PUTS_Chng_in_OI': '{:,.2f}'
-    }).highlight_rows(df_buy_signals['Signal'] == 'BUY CE', color='lightgreen').highlight_rows(df_buy_signals['Signal'] == 'BUY PE', color='salmon')
-    
+    buy_signal_table = df_buy_signals.style.applymap(
+        lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
+        subset=['Signal']
+    )
     st.table(buy_signal_table)
     
-    # Display capture times
+    # Display the time capture table
+    df_times = pd.DataFrame(st.session_state.capture_times, columns=['Time', 'Reason'])
     st.write("**Capture Times**")
-    capture_times_df = pd.DataFrame(st.session_state.capture_times, columns=['Time', 'Status'])
-    st.table(capture_times_df)
+    st.table(df_times)
 
 # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
-st.write(index)
-col1, col2 = st.columns(2)
-col1.metric('**Spot price**', cmp)
-pcr = np.round(o.PUTS_OI.sum() / o.CALLS_OI.sum(), 2)
-col2.metric('**PCR:**', pcr)
+try:
+    st.write(index)
+    col1, col2 = st.columns(2)
+    col1.metric('**Spot price**', cmp)
+    pcr = np.round(o.PUTS_OI.sum() / o.CALLS_OI.sum(), 2)
+    col2.metric('**PCR:**', pcr)
+except Exception as e:
+    st.text(f"An error occurred: {e}")
 
 # Refresh every 3 minutes
 time.sleep(180)  # Wait for 180 seconds (3 minutes)
