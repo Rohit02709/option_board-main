@@ -56,6 +56,8 @@ try:
     # Tab 4: OI-based Buy/Sell Signal
     with tab4:
         st.subheader('OI-based Buy/Sell Signal')
+            oi['CALLS_OI_Percent_Change'] = (oi['CALLS_Chng_in_OI'] / oi['CALLS_OI']) * 100
+    oi['PUTS_OI_Percent_Change'] = (oi['PUTS_Chng_in_OI'] / oi['PUTS_OI']) * 100
         def generate_signal(row):
             """
             Function to generate buy/sell signals based on OI change
