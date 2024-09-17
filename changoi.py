@@ -71,7 +71,7 @@ st.header('Option Analysis', divider='rainbow')
 tab1, tab2, tab3, tab4 = st.tabs(["Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal"])
 
 # Create sidebar to select index instrument and for expiry day selection
-index = st.sidebar.selectbox("Select index name", ('NIFTY', "BANKNIFTY", "FINNIFTY"))
+index = st.sidebar.selectbox("Select index name", ('NIFTY', "BANKNIFTY", "FINNIFTY",'MIDCPNIFTY'))
 ex = st.sidebar.selectbox('Select expiry date', derivatives.expiry_dates_option_index()[index])
 exp = datetime.strptime(ex, '%d-%b-%Y').strftime('%d-%m-%Y')
 
