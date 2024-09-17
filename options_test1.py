@@ -7,11 +7,17 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import time
+import streamlit as st
+
+# Add custom CSS to hide the GitHub icon
 hide_github_icon = """
-GithubIcon {
+#GithubIcon {
   visibility: hidden;
 }
-st.markdown(hide_github_style, unsafe_allow_html=True)
+"""
+st.markdown(hide_github_icon, unsafe_allow_html=True)
+
+
 # add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
 st.header('Option Analysis', divider='rainbow')
