@@ -7,11 +7,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import time
-hide_github_style = """
-        <style>
-        .css-1lsmgbg {display:none;}
-        </style>
-        """
+hide_github_icon = """
+GithubIcon {
+  visibility: hidden;
+}
 st.markdown(hide_github_style, unsafe_allow_html=True)
 # add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
