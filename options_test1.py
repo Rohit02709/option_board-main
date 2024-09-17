@@ -8,15 +8,17 @@ import pandas as pd
 import streamlit as st
 import time
 import streamlit as st
-hide_github_style = """
-        <style>
-        .css-1lsmgbg {display:none;}
-        </style>
-        """
-st.markdown(hide_github_style, unsafe_allow_html=True)
+
+
 # add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
 st.header('Option Analysis', divider='rainbow')
+        hide_st_style ="""
+	    <style>
+	    footer { visibility :hidden;}
+            header { visibility :hidden;}
+            </style>
+st.markdown(hide_st_style, unsafe_allow_html=True)
 # create some tabs for option analysis
 tab1, tab2, tab3, tab4 = st.tabs(["Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal"])
 # create side bar to select index instrument and for expiry day selection
