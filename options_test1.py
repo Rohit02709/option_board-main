@@ -6,6 +6,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
+import time
 
 # add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
@@ -103,3 +104,7 @@ try:
 
 except Exception as e:
     st.text(f"An error occurred: {e}")
+
+# Refresh every 2 minutes
+time.sleep(120)  # Wait for 120 seconds
+st.experimental_rerun()  # Re-run the script to refresh the data
