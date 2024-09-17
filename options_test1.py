@@ -1,4 +1,4 @@
-# import all important libraries
+# Import all important libraries
 from nselib import derivatives
 from nselib import capital_market
 import matplotlib.pyplot as plt
@@ -6,38 +6,38 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
+import time
 
-# Title of the web-app
+# Add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
-st.header('Option Analysis')
+st.header('Option Analysis', divider='rainbow')
 
-# Tabs for different option analyses
+# Create some tabs for option analysis
 tab1, tab2, tab3, tab4 = st.tabs(["Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal"])
 
-# Sidebar selection for index and expiry date
+# Create sidebar to select index instrument and for expiry day selection
 index = st.sidebar.selectbox("Select index name", ('NIFTY', "BANKNIFTY", "FINNIFTY"))
-expiry_dates = derivatives.expiry_dates_option_index()[index]
-ex = st.sidebar.selectbox('Select expiry date', expiry_dates)
+ex = st.sidebar.selectbox('Select expiry date', derivatives.expiry_dates_option_index()[index])
 exp = datetime.strptime(ex, '%d-%b-%Y').strftime('%d-%m-%Y')
 
-# Extracting data from the nselib library
+# Extracting data from nselib library
 try:
     option = derivatives.nse_live_option_chain(index, exp)
     o = option[['CALLS_OI', 'CALLS_Chng_in_OI', 'CALLS_LTP', 'Strike_Price', 'PUTS_LTP', 'PUTS_Chng_in_OI', 'PUTS_OI']].set_index('Strike_Price')
 
-    # Calculating spot price and range for option analysis
+    # Calculating spot price and setting up range for option analysis
     if index == 'NIFTY':
         cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last']
-        range_ = (int(np.round(cmp / 50.0)) * 50) + 1000, (int(np.round(cmp / 50.0)) * 50) - 1000
-        oi = o.loc[range_[1]:range_[0]]
+        range = (int(np.round(cmp / 50.0)) * 50) + 1000, (int(np.round(cmp / 50.0)) * 50) - 1000
+        oi = o.loc[range[1]:range[0]]
     elif index == 'BANKNIFTY':
         cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY BANK', 'last']
-        range_ = (int(np.round(cmp / 100.0)) * 100) + 1500, (int(np.round(cmp / 100.0)) * 100) - 1500
-        oi = o.loc[range_[1]:range_[0]]
+        range = (int(np.round(cmp / 100.0)) * 100) + 1500, (int(np.round(cmp / 100.0)) * 100) - 1500
+        oi = o.loc[range[1]:range[0]]
     else:
         cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY FINANCIAL SERVICES', 'last']
-        range_ = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
-        oi = o.loc[range_[1]:range_[0]]
+        range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
+        oi = o.loc[range[1]:range[0]]
 
     # Tab 1: Option Chain
     with tab1:
@@ -58,56 +58,74 @@ try:
         ax[1].set_xlabel('Change in OI')
         st.pyplot(fig)
 
-    # Tab 3: Ratio Strategy (if any, keep unchanged or add the content)
-
-    # Tab 4: OI-based Buy/Sell Signal
+    # Tab 4: OI-based Buy/Sell Signal (Intraday Signals with Enhanced Logic)
     with tab4:
-        st.subheader('OI-based Buy/Sell Signal')
+        st.subheader('OI-based Buy/Sell Signal (Intraday)')
 
         # Calculate percentage change in OI for calls and puts
-        oi['CALLS_OI_Percent_Change'] = (oi['CALLS_Chng_in_OI'] / oi['CALLS_OI']) * 100
-        oi['PUTS_OI_Percent_Change'] = (oi['PUTS_Chng_in_OI'] / oi['PUTS_OI']) * 100
+        oi['CALL_OI_%'] = (oi['CALLS_Chng_in_OI'] / oi['CALLS_OI'] * 100).round(1)  # Call OI % change with 1 decimal
+        oi['PUT_OI_%'] = (oi['PUTS_Chng_in_OI'] / oi['PUTS_OI'] * 100).round(1)      # Put OI % change with 1 decimal
 
-        # Generate buy/sell signals based on OI change
-        def generate_signal(row):
-            if row['PUTS_Chng_in_OI'] > row['CALLS_Chng_in_OI'] * 2:
+        def intraday_signal(row):
+            """
+            Updated intraday signal logic based on OI changes.
+            - BUY CE: Significant PUT OI increase or CALL OI decrease for intraday trades.
+            - BUY PE: Significant CALL OI increase or PUT OI decrease.
+            This also incorporates minimum percentage change thresholds.
+            """
+            # Define thresholds for meaningful changes
+            min_change_pct = 5  # Minimum percentage change in OI to trigger a signal
+            
+            # Case 1: Buy CE (Call Option) Signal - Significant PUT OI Increase or CALL OI Decrease
+            if row['PUT_OI_%'] > min_change_pct and row['CALL_OI_%'] < -min_change_pct:
                 return "BUY CE"
-            elif row['CALLS_Chng_in_OI'] > row['PUTS_Chng_in_OI'] * 2:
+            
+            # Case 2: Buy PE (Put Option) Signal - Significant CALL OI Increase or PUT OI Decrease
+            elif row['CALL_OI_%'] > min_change_pct and row['PUT_OI_%'] < -min_change_pct:
                 return "BUY PE"
+            
+            # Case 3: HOLD if no strong signal
             else:
                 return "HOLD"
 
-        # Generate signals for each row
-        oi['Signal'] = oi.apply(generate_signal, axis=1)
+        # Apply updated intraday signals
+        oi['Signal'] = oi.apply(intraday_signal, axis=1)
 
         # Sort by the absolute value of change in OI (largest change first)
         oi_sorted = oi.reindex(oi[['CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']].abs().sum(axis=1).sort_values(ascending=False).index)
 
-        # Select the top 5 strikes with the most significant change in OI
+        # Select only the top 5 strikes with the most significant change in OI
         oi_top_5 = oi_sorted.head(5)
 
         # Reset index to avoid non-unique index issue
         oi_top_5_reset = oi_top_5.reset_index()
 
-        # Display signals with LTP and OI percentage changes
-        signal_table = oi_top_5_reset[['Strike_Price', 'CALLS_OI', 'CALLS_Chng_in_OI', 'CALLS_OI_Percent_Change',
-                                       'CALLS_LTP', 'PUTS_LTP', 'PUTS_Chng_in_OI', 'PUTS_OI_Percent_Change', 
+        # Display signals with shorter labels and percentages rounded to 1 decimal
+        signal_table = oi_top_5_reset[['Strike_Price', 'CALLS_OI', 'CALL_OI_%',
+                                       'CALLS_LTP', 'PUTS_LTP', 'PUT_OI_%',
                                        'PUTS_OI', 'Signal']].style.applymap(
             lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
             subset=['Signal']
+        ).set_properties(
+            **{'text-align': 'center'}
+        ).format(
+            {'CALL_OI_%': "{:.1f}", 'PUT_OI_%': "{:.1f}"}  # Format percentage columns to 1 decimal point
         )
+
+        # Display the table with full width and no scrollbars
         st.table(signal_table)
 
-    # Additional Metrics: Spot price and PCR (Put-Call Ratio)
+    # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
     st.write(index)
     col1, col2 = st.columns(2)
     col1.metric('**Spot price**', cmp)
-
+    
     pcr = np.round(o.PUTS_OI.sum() / o.CALLS_OI.sum(), 2)
     col2.metric('**PCR:**', pcr)
 
 except Exception as e:
     st.text(f"An error occurred: {e}")
 
-# Auto-refresh the app every 2 minutes without blocking
-st.experimental_rerun_interval = 120  # Auto-refresh interval in seconds
+# Refresh every 2 minutes
+time.sleep(120)  # Wait for 120 seconds
+st.experimental_rerun()  # Re-run the script to refresh the data
