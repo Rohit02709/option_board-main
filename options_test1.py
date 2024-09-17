@@ -72,7 +72,7 @@ try:
         # Sort by the absolute value of change in OI (largest change first)
         oi_sorted = oi.reindex(oi[['CALLS_Chng_in_OI', 'PUTS_Chng_in_OI']].abs().sum(axis=1).sort_values(ascending=False).index)
         # Select only the top 5 strikes with the most significant change in OI
-        oi_top_5 = oi_sorted.head(5)
+        oi_top_8 = oi_sorted.head(8)
         # Highlight the buy/sell signals and whether to buy CE or PE
         signal_table = oi_top_5[['CALLS_OI', 'CALLS_Chng_in_OI', 'PUTS_OI', 'PUTS_Chng_in_OI', 'Signal']].style.applymap(
             lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
