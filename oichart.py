@@ -60,16 +60,48 @@ try:
     # Tab 2: OI Analysis
     with tab2:
         st.subheader('Open Interest Analysis')
-        fig, ax = plt.subplots(2, 1)
-        ax[0].bar(oi.index, oi['CE_OI'], color='blue', width=20)
-        ax[0].bar(oi.index - 10, oi['PE_OI'], color='red', width=20)
-        ax[0].axvline(x=cmp, color='black', linestyle='--')
-        ax[0].set_title('OI Position')
-        ax[1].bar(oi.index, oi['CE_CHG_OI'], color='blue', width=20)
-        ax[1].bar(oi.index - 10, oi['PE_CHG_OI'], color='red', width=20)
-        ax[1].axvline(x=cmp, color='black', linestyle='--')
-        ax[1].set_xlabel('Change in OI')
+        
+        # Identify ATM (At-The-Money) strike
+        atm_strike = oi.index.get_loc(min(oi.index, key=lambda x: abs(x - cmp)))  # closest strike to current market price
+        strikes_above_below_atm = list(oi.index[max(0, atm_strike - 5):min(len(oi), atm_strike + 6)])  # 5 strikes above and below ATM
+    
+        # Filter the dataframe to only include these strikes
+        oi_atm_filtered = oi.loc[strikes_above_below_atm]
+    
+        # Plot OI and OI change for 5 strikes above and below ATM
+        fig, ax = plt.subplots(2, 1, figsize=(10, 6))
+    
+        # Bar plot for OI
+        ax[0].bar(oi_atm_filtered.index, oi_atm_filtered['CE_OI'], color='blue', label='Call OI', width=20)
+        ax[0].bar(oi_atm_filtered.index, oi_atm_filtered['PE_OI'], color='red', label='Put OI', width=10)
+        ax[0].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
+        ax[0].set_title('OI for strikes near ATM')
+        ax[0].legend()
+    
+        # Bar plot for OI Change
+        ax[1].bar(oi_atm_filtered.index, oi_atm_filtered['CE_CHG_OI'], color='green' if oi_atm_filtered['CE_CHG_OI'].mean() > 0 else 'red', label='Call OI Change', width=20)
+        ax[1].bar(oi_atm_filtered.index, oi_atm_filtered['PE_CHG_OI'], color='green' if oi_atm_filtered['PE_CHG_OI'].mean() > 0 else 'red', label='Put OI Change', width=10)
+        ax[1].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
+        ax[1].set_title('OI Change for strikes near ATM')
+        ax[1].legend()
+        
         st.pyplot(fig)
+        
+        # Create a table with strike prices, Call OI, Call OI Change, Put OI, and Put OI Change
+        oi_atm_filtered_table = oi_atm_filtered[['CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI']].copy()
+    
+        # Get current time in the desired format (hh:mm am/pm)
+        current_time_ampm = datetime.now().strftime('%I:%M %p')
+        oi_atm_filtered_table['Time'] = current_time_ampm
+    
+        # Apply color formatting for OI changes: green for positive, red for negative
+        def color_positive_negative(val):
+            color = 'green' if val > 0 else 'red' if val < 0 else 'black'
+            return f'color: {color}'
+        
+        # Display the table with conditional formatting for OI changes
+        st.table(oi_atm_filtered_table.style.applymap(color_positive_negative, subset=['CE_CHG_OI', 'PE_CHG_OI']))
+
 
     # Tab 4: OI-based Buy/Sell Signal
     with tab4:
