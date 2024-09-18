@@ -86,6 +86,17 @@ try:
         ax[1].legend()
         
         st.pyplot(fig)
+
+        fig, ax = plt.subplots(2, 1)
+        ax[0].bar(oi.index, oi['CALLS_OI'], color='blue', width=20)
+        ax[0].bar(oi.index - 10, oi['PUTS_OI'], color='red', width=20)
+        ax[0].axvline(x=cmp, color='black', linestyle='--')
+        ax[0].set_title('OI Position')
+        ax[1].bar(oi.index, oi['CALLS_Chng_in_OI'], color='blue', width=20)
+        ax[1].bar(oi.index - 10, oi['PUTS_Chng_in_OI'], color='red', width=20)
+        ax[1].axvline(x=cmp, color='black', linestyle='--')
+        ax[1].set_xlabel('Change in OI')
+        st.pyplot(fig)
         
         # Create a table with strike prices, Call OI, Call OI Change, Put OI, and Put OI Change
         oi_atm_filtered_table = oi_atm_filtered[['CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI']].copy()
