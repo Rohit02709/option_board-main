@@ -140,21 +140,27 @@ try:
     # Tab 5: Signal History with Time, CE_LTP, PE_LTP, and Color Coding
     with tab5:
         st.subheader('Signal History')
+    
+        # Initialize signal history if it doesn't exist
+        if 'signal_history' not in st.session_state:
+            st.session_state.signal_history = pd.DataFrame(columns=['Strike_Price', 'Signal', 'CE_LTP', 'PE_LTP', 'Time'])
+    
+        # Generate current signals
+        current_signals = oi[['Signal']].copy()
+        current_signals['Strike_Price'] = current_signals.index
+        current_signals['CE_LTP'] = oi['CE_LTP']
+        current_signals['PE_LTP'] = oi['PE_LTP']
+        current_signals['Time'] = oi['Time']
+    
+        # Append new signals to the history
+        st.session_state.signal_history = pd.concat([st.session_state.signal_history, current_signals], ignore_index=True)
+    
+        # Apply color coding to the signal column
+        st.dataframe(st.session_state.signal_history.style.applymap(
+            lambda val: 'color: green' if 'BUY CE' in val else 'color: red' if 'BUY PE' in val else 'color: black',
+            subset=['Signal']
+        ))
 
-        # Check if signal history exists
-        if 'signal_history' in st.session_state:
-            signal_history = st.session_state.signal_history.copy()
-
-            # Add LTP and Time columns to signal history
-            signal_history['CE_LTP'] = signal_history.apply(lambda row: oi.loc[row['Strike_Price'], 'CE_LTP'], axis=1)
-            signal_history['PE_LTP'] = signal_history.apply(lambda row: oi.loc[row['Strike_Price'], 'PE_LTP'], axis=1)
-            signal_history['Time'] = signal_history.apply(lambda row: oi.loc[row['Strike_Price'], 'Time'], axis=1)
-
-            # Apply color coding to the signal column
-            st.dataframe(signal_history.style.applymap(
-                lambda val: 'color: green' if 'BUY CE' in val else 'color: red' if 'BUY PE' in val else 'color: black',
-                subset=['Signal']
-            ))
     # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
     st.write(index)
     col1, col2 = st.columns(2)
