@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 import time
 import pytz  # New import for handling Indian time zone
-#from nselib import greeks
+# from nselib import greeks
 
 # Add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
@@ -64,7 +64,7 @@ try:
         st.subheader('Option Chain')
         st.table(oi.style.highlight_max(axis=0, subset=['CE_OI', 'PE_OI', 'CE_CHG_OI', 'PE_CHG_OI']))
 
-   # Tab 2: OI Analysis with additional columns for Time, CE_LTP, and PE_LTP
+    # Tab 2: OI Analysis with additional columns for Time, CE_LTP, and PE_LTP
     with tab2:
         st.subheader('Open Interest Analysis')
 
@@ -161,18 +161,26 @@ try:
         st.subheader('Enhanced OI-based Buy/Sell Signal')
 
         # Additional parameters like volume, IV, greeks, etc.
-        option_volume = option['CALLS_volume'] + option['PUTS_volume']  # Assuming volume data is available
-        oi['Volume'] = option_volume
-        iv = option['Implied_Volatility']  # Assuming IV data is available
-        oi['Implied_Volatility'] = iv
+        if 'CALLS_volume' in option.columns and 'PUTS_volume' in option.columns:
+            option_volume = option['CALLS_volume'] + option['PUTS_volume']  # Assuming volume data is available
+            oi['Volume'] = option_volume
+        else:
+            oi['Volume'] = 0
+
+        if 'Implied_Volatility' in option.columns:
+            iv = option['Implied_Volatility']  # Assuming IV data is available
+            oi['Implied_Volatility'] = iv
+        else:
+            oi['Implied_Volatility'] = 0
+
         oi['PCR'] = oi['PE_OI'] / oi['CE_OI']
 
         # Option Greeks
-        greeks_data = greeks.get_option_greeks(index, exp)
-        oi['Delta'] = greeks_data['Delta']
-        oi['Gamma'] = greeks_data['Gamma']
-        oi['Theta'] = greeks_data['Theta']
-        oi['Vega'] = greeks_data['Vega']
+        # greeks_data = greeks.get_option_greeks(index, exp)
+        # oi['Delta'] = greeks_data['Delta']
+        # oi['Gamma'] = greeks_data['Gamma']
+        # oi['Theta'] = greeks_data['Theta']
+        # oi['Vega'] = greeks_data['Vega']
 
         def enhanced_signal(row):
             """
@@ -182,8 +190,8 @@ try:
                 return "STRONG BUY CE"
             elif row['CE_CHG_OI'] > row['PE_CHG_OI'] * 2 and row['Volume'] > 1000 and row['Implied_Volatility'] > 20:
                 return "STRONG BUY PE"
-            elif row['Gamma'] > 0.5 and row['Theta'] < 0 and row['Volume'] > 1000:
-                return "BUY Gamma"
+            # elif row['Gamma'] > 0.5 and row['Theta'] < 0 and row['Volume'] > 1000:
+            #     return "BUY Gamma"
             else:
                 return "HOLD"
 
@@ -194,7 +202,7 @@ try:
         oi_sorted = oi.sort_values(by=['Volume', 'Implied_Volatility'], ascending=False).head(10)
 
         # Display the table
-        st.table(oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Gamma', 'Theta', 'Enhanced_Signal']].style.applymap(
+        st.table(oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Enhanced_Signal']].style.applymap(
             lambda val: 'color: green' if 'BUY' in val else 'color: black', subset=['Enhanced_Signal']
         ))
 
