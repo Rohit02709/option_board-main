@@ -232,3 +232,6 @@ try:
 
 except Exception as e:
     st.error(f"An error occurred: {e}")
+# Refresh every 3 minutes
+time.sleep(180)  # Wait for 180 seconds
+st.experimental_rerun()  # Re-run the script to refresh the data
