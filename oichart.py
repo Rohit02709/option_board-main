@@ -17,8 +17,8 @@ st.header('Option Analysis', divider='rainbow')
 indian_tz = pytz.timezone('Asia/Kolkata')  # Set Indian Time Zone
 
 # Create some tabs for option analysis
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal", "Signal History", "Enhanced OI-based Buy/Sell Signal"
+tab1, tab2, tab4, tab5, tab6 = st.tabs([
+    "Option Chain", "OI Analysis", "OI-based Buy/Sell Signal", "Signal History", "Enhanced OI-based Buy/Sell Signal"
 ])
 
 # Create side bar to select index instrument and for expiry day selection
