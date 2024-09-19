@@ -1,13 +1,13 @@
-# Import necessary libraries
 from nselib import derivatives
 from nselib import capital_market
 import matplotlib.pyplot as plt
 from datetime import datetime
-import pytz  # New import for handling Indian time zone
 import numpy as np
 import pandas as pd
 import streamlit as st
 import time
+import pytz  # New import for handling Indian time zone
+from nselib import greeks
 
 # Add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
@@ -17,7 +17,9 @@ st.header('Option Analysis', divider='rainbow')
 indian_tz = pytz.timezone('Asia/Kolkata')  # Set Indian Time Zone
 
 # Create some tabs for option analysis
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal", "Signal History"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal", "Signal History", "Enhanced OI-based Buy/Sell Signal"
+])
 
 # Create side bar to select index instrument and for expiry day selection
 index = st.sidebar.selectbox("Select index name", ('NIFTY', "BANKNIFTY", "FINNIFTY"))
@@ -27,8 +29,8 @@ exp = datetime.strptime(ex, '%d-%b-%Y').strftime('%d-%m-%Y')
 # Extracting data from nselib library
 try:
     option = derivatives.nse_live_option_chain(index, exp)
-
-    # Rename columns and add time column (IST time zone, hh:mm format)
+    
+    # Rename columns and add time column (hh:mm format)
     o = option[['CALLS_OI', 'CALLS_Chng_in_OI', 'CALLS_LTP', 'Strike_Price', 'PUTS_LTP', 'PUTS_Chng_in_OI', 'PUTS_OI']].set_index('Strike_Price')
     o.rename(columns={
         'CALLS_OI': 'CE_OI',
@@ -38,11 +40,11 @@ try:
         'PUTS_Chng_in_OI': 'PE_CHG_OI',
         'PUTS_LTP': 'PE_LTP'
     }, inplace=True)
-
-    # Get current time in Indian Standard Time
+    
+    # Add time column formatted as hh:mm
     current_time = datetime.now(indian_tz).strftime('%H:%M')
     o['Time'] = current_time
-
+    
     # Calculating spot price and setting up range for option analysis
     if index == 'NIFTY':
         cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last']
@@ -62,7 +64,7 @@ try:
         st.subheader('Option Chain')
         st.table(oi.style.highlight_max(axis=0, subset=['CE_OI', 'PE_OI', 'CE_CHG_OI', 'PE_CHG_OI']))
 
-    # Tab 2: OI Analysis
+   # Tab 2: OI Analysis with additional columns for Time, CE_LTP, and PE_LTP
     with tab2:
         st.subheader('Open Interest Analysis')
 
@@ -73,63 +75,45 @@ try:
         # Filter the dataframe to only include these strikes
         oi_atm_filtered = oi.loc[strikes_above_below_atm]
 
-        # Plot OI and OI change for 5 strikes above and below ATM in separate subplots
-        fig, ax = plt.subplots(2, 2, figsize=(12, 8))  # 2x2 grid for Call and Put OI and changes
+        # Add columns for CE_LTP, PE_LTP, and Time
+        oi_atm_filtered['CE_LTP'] = oi.loc[oi_atm_filtered.index, 'CE_LTP']
+        oi_atm_filtered['PE_LTP'] = oi.loc[oi_atm_filtered.index, 'PE_LTP']
+        oi_atm_filtered['Time'] = current_time
 
-        # Bar plot for Call OI (Left Column)
+        # Plot OI and OI change for 5 strikes above and below ATM in separate subplots
+        fig, ax = plt.subplots(2, 2, figsize=(12, 8))
+
         ax[0, 0].bar(oi_atm_filtered.index, oi_atm_filtered['CE_OI'], color='blue', width=10)
         ax[0, 0].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
         ax[0, 0].set_title('Call OI')
-        ax[0, 0].set_xlabel('Strike Price')
-        ax[0, 0].set_ylabel('Open Interest')
-        ax[0, 0].legend()
-
-        # Bar plot for Put OI (Right Column)
         ax[0, 1].bar(oi_atm_filtered.index, oi_atm_filtered['PE_OI'], color='red', width=10)
         ax[0, 1].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
         ax[0, 1].set_title('Put OI')
-        ax[0, 1].set_xlabel('Strike Price')
-        ax[0, 1].set_ylabel('Open Interest')
-        ax[0, 1].legend()
 
-        # Bar plot for Call OI Change (Bottom Left)
         ax[1, 0].bar(oi_atm_filtered.index, oi_atm_filtered['CE_CHG_OI'], 
                      color=['green' if v > 0 else 'red' for v in oi_atm_filtered['CE_CHG_OI']], width=10)
-        ax[1, 0].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
-        ax[1, 0].set_title('Call OI Change')
-        ax[1, 0].set_xlabel('Strike Price')
-        ax[1, 0].set_ylabel('OI Change')
-        ax[1, 0].legend()
-
-        # Bar plot for Put OI Change (Bottom Right)
         ax[1, 1].bar(oi_atm_filtered.index, oi_atm_filtered['PE_CHG_OI'], 
                      color=['green' if v > 0 else 'red' for v in oi_atm_filtered['PE_CHG_OI']], width=10)
-        ax[1, 1].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
-        ax[1, 1].set_title('Put OI Change')
-        ax[1, 1].set_xlabel('Strike Price')
-        ax[1, 1].set_ylabel('OI Change')
-        ax[1, 1].legend()
 
-        # Adjust the layout for better spacing
-        plt.tight_layout()
-
-        # Display the plots
+        # Show plots
         st.pyplot(fig)
 
-        # Display OI table with color formatting for OI changes
-        st.table(oi_atm_filtered[['CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI']].style.applymap(
-            lambda val: 'color: green' if val > 0 else 'color: red' if val < 0 else 'color: black'))
+        # Display the filtered table with OI, OI Change, CE_LTP, PE_LTP, and Time
+        oi_atm_filtered_table = oi_atm_filtered[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Time']].copy()
 
-    # Tab 4: OI-based Buy/Sell Signal
+        # Apply color formatting for OI changes
+        def color_positive_negative(val):
+            color = 'green' if val > 0 else 'red' if val < 0 else 'black'
+            return f'color: {color}'
+
+        # Display the table with conditional formatting
+        st.table(oi_atm_filtered_table.style.applymap(color_positive_negative, subset=['CE_CHG_OI', 'PE_CHG_OI']))
+
+    # Tab 4: OI-based Buy/Sell Signal (unchanged)
     with tab4:
         st.subheader('OI-based Buy/Sell Signal')
 
         def generate_signal(row):
-            """
-            Function to generate buy/sell signals based on OI change.
-            Buy CE: Significant increase in PE OI or decrease in CE OI
-            Buy PE: Significant increase in CE OI or decrease in PE OI
-            """
             if row['PE_CHG_OI'] > row['CE_CHG_OI'] * 2:
                 return "BUY CE"
             elif row['CE_CHG_OI'] > row['PE_CHG_OI'] * 2:
@@ -146,35 +130,73 @@ try:
         # Select only the top 5 strikes with the most significant change in OI
         oi_top_5 = oi_sorted.head(9)
 
-        # Display the table with buy/sell signals
-        st.table(oi_top_5[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal']].style.applymap(
+        # Create signal_table and include CE_LTP and PE_LTP columns
+        signal_table = oi_top_5[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal']].style.applymap(
             lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
             subset=['Signal']
-        ))
+        )
+        st.table(signal_table)
 
-        # Storing signals in session state for history tracking
-        if 'signal_history' not in st.session_state:
-            st.session_state.signal_history = pd.DataFrame(columns=['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI', 'Signal', 'Time'])
-
-        # Append the new signal data to the signal history DataFrame
-        st.session_state.signal_history = pd.concat([st.session_state.signal_history, oi_top_5.reset_index()[['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI', 'Signal', 'Time']]])
-
-    # Tab 5: Signal History
+    # Tab 5: Signal History with Time, CE_LTP, PE_LTP, and Color Coding
     with tab5:
         st.subheader('Signal History')
-        # Display signal history
-        st.dataframe(st.session_state.signal_history)
 
-    # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
-    st.write(index)
-    col1, col2 = st.columns(2)
-    col1.metric('**Spot price**', cmp)
-    pcr = np.round(o.PE_OI.sum() / o.CE_OI.sum(), 2)
-    col2.metric('**PCR:**', pcr)
+        # Check if signal history exists
+        if 'signal_history' in st.session_state:
+            signal_history = st.session_state.signal_history.copy()
+
+            # Add LTP and Time columns to signal history
+            signal_history['CE_LTP'] = signal_history.apply(lambda row: oi.loc[row['Strike_Price'], 'CE_LTP'], axis=1)
+            signal_history['PE_LTP'] = signal_history.apply(lambda row: oi.loc[row['Strike_Price'], 'PE_LTP'], axis=1)
+            signal_history['Time'] = signal_history.apply(lambda row: oi.loc[row['Strike_Price'], 'Time'], axis=1)
+
+            # Apply color coding to the signal column
+            st.dataframe(signal_history.style.applymap(
+                lambda val: 'color: green' if 'BUY CE' in val else 'color: red' if 'BUY PE' in val else 'color: black',
+                subset=['Signal']
+            ))
+
+    # Tab 6: Enhanced OI-based Buy/Sell Signal (moved from Tab 4)
+    with tab6:
+        st.subheader('Enhanced OI-based Buy/Sell Signal')
+
+        # Additional parameters like volume, IV, greeks, etc.
+        option_volume = option['CALLS_volume'] + option['PUTS_volume']  # Assuming volume data is available
+        oi['Volume'] = option_volume
+        iv = option['Implied_Volatility']  # Assuming IV data is available
+        oi['Implied_Volatility'] = iv
+        oi['PCR'] = oi['PE_OI'] / oi['CE_OI']
+
+        # Option Greeks
+        greeks_data = greeks.get_option_greeks(index, exp)
+        oi['Delta'] = greeks_data['Delta']
+        oi['Gamma'] = greeks_data['Gamma']
+        oi['Theta'] = greeks_data['Theta']
+        oi['Vega'] = greeks_data['Vega']
+
+        def enhanced_signal(row):
+            """
+            Enhanced Signal Generation based on OI change, Volume, IV, and Greeks.
+            """
+            if row['PE_CHG_OI'] > row['CE_CHG_OI'] * 2 and row['Volume'] > 1000 and row['Implied_Volatility'] > 20:
+                return "STRONG BUY CE"
+            elif row['CE_CHG_OI'] > row['PE_CHG_OI'] * 2 and row['Volume'] > 1000 and row['Implied_Volatility'] > 20:
+                return "STRONG BUY PE"
+            elif row['Gamma'] > 0.5 and row['Theta'] < 0 and row['Volume'] > 1000:
+                return "BUY Gamma"
+            else:
+                return "HOLD"
+
+        # Apply enhanced signal generation
+        oi['Enhanced_Signal'] = oi.apply(enhanced_signal, axis=1)
+
+        # Sort and show the top 10 most active strikes
+        oi_sorted = oi.sort_values(by=['Volume', 'Implied_Volatility'], ascending=False).head(10)
+
+        # Display the table
+        st.table(oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Gamma', 'Theta', 'Enhanced_Signal']].style.applymap(
+            lambda val: 'color: green' if 'BUY' in val else 'color: black', subset=['Enhanced_Signal']
+        ))
 
 except Exception as e:
-    st.text(f"An error occurred: {e}")
-
-# Refresh every 3 minutes
-time.sleep(180)  # Wait for 180 seconds
-st.experimental_rerun()  # Re-run the script to refresh the data
+    st.error(f"An error occurred: {e}")
