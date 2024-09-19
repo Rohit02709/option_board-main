@@ -143,23 +143,35 @@ try:
     
         # Initialize signal history if it doesn't exist
         if 'signal_history' not in st.session_state:
-            st.session_state.signal_history = pd.DataFrame(columns=['Strike_Price', 'Signal', 'CE_LTP', 'PE_LTP', 'Time'])
+            st.session_state.signal_history = pd.DataFrame(columns=[
+                'Strike_Price', 'CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Time'
+            ])
     
         # Generate current signals
-        current_signals = oi[['Signal']].copy()
+        current_signals = oi[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Time']].copy()
         current_signals['Strike_Price'] = current_signals.index
-        current_signals['CE_LTP'] = oi['CE_LTP']
-        current_signals['PE_LTP'] = oi['PE_LTP']
-        current_signals['Time'] = oi['Time']
     
         # Append new signals to the history
         st.session_state.signal_history = pd.concat([st.session_state.signal_history, current_signals], ignore_index=True)
     
-        # Apply color coding to the signal column
-        st.dataframe(st.session_state.signal_history.style.applymap(
-            lambda val: 'color: green' if 'BUY CE' in val else 'color: red' if 'BUY PE' in val else 'color: black',
-            subset=['Signal']
-        ))
+        # Display the updated signal history DataFrame with color coding
+        st.dataframe(
+            st.session_state.signal_history.style.applymap(
+                lambda val: 'color: green' if 'BUY CE' in val else 'color: red' if 'BUY PE' in val else 'color: black',
+                subset=['Signal']
+            ),
+            use_container_width=True  # This adjusts the table width based on the container width
+        )
+    
+        # Add download button for the CSV file
+        csv = st.session_state.signal_history.to_csv(index=False)
+        st.download_button(
+            label="Download Signal History",
+            data=csv,
+            file_name='signal_history.csv',
+            mime='text/csv'
+        )
+
 
     # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
     st.write(index)
