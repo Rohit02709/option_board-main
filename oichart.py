@@ -155,7 +155,13 @@ try:
                 lambda val: 'color: green' if 'BUY CE' in val else 'color: red' if 'BUY PE' in val else 'color: black',
                 subset=['Signal']
             ))
-
+    # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
+    st.write(index)
+    col1, col2 = st.columns(2)
+    col1.metric('**Spot price**', cmp)
+    pcr = np.round(o.PE_OI.sum() / o.CE_OI.sum(), 2)
+    col2.metric('**PCR:**', pcr)
+    
     # Tab 6: Enhanced OI-based Buy/Sell Signal (moved from Tab 4)
     with tab6:
         st.subheader('Enhanced OI-based Buy/Sell Signal')
