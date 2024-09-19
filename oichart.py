@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 import time
 import pytz  # New import for handling Indian time zone
-from nselib import greeks
+#from nselib import greeks
 
 # Add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
