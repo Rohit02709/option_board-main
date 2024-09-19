@@ -1,7 +1,9 @@
+# Import necessary libraries
 from nselib import derivatives
 from nselib import capital_market
 import matplotlib.pyplot as plt
 from datetime import datetime
+import pytz  # New import for handling Indian time zone
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -11,8 +13,11 @@ import time
 st.title(':red[NSE] **Option Dashboard**')
 st.header('Option Analysis', divider='rainbow')
 
+# Initialize Indian timezone
+indian_tz = pytz.timezone('Asia/Kolkata')  # Set Indian Time Zone
+
 # Create some tabs for option analysis
-tab1, tab2, tab3, tab4 = st.tabs(["Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Option Chain", "OI Analysis", "Ratio Strategy", "OI-based Buy/Sell Signal", "Signal History"])
 
 # Create side bar to select index instrument and for expiry day selection
 index = st.sidebar.selectbox("Select index name", ('NIFTY', "BANKNIFTY", "FINNIFTY"))
@@ -22,8 +27,8 @@ exp = datetime.strptime(ex, '%d-%b-%Y').strftime('%d-%m-%Y')
 # Extracting data from nselib library
 try:
     option = derivatives.nse_live_option_chain(index, exp)
-    
-    # Rename columns and add time column (hh:mm format)
+
+    # Rename columns and add time column (IST time zone, hh:mm format)
     o = option[['CALLS_OI', 'CALLS_Chng_in_OI', 'CALLS_LTP', 'Strike_Price', 'PUTS_LTP', 'PUTS_Chng_in_OI', 'PUTS_OI']].set_index('Strike_Price')
     o.rename(columns={
         'CALLS_OI': 'CE_OI',
@@ -33,11 +38,11 @@ try:
         'PUTS_Chng_in_OI': 'PE_CHG_OI',
         'PUTS_LTP': 'PE_LTP'
     }, inplace=True)
-    
-    # Add time column formatted as hh:mm
-    current_time = datetime.now().strftime('%H:%M')
+
+    # Get current time in Indian Standard Time
+    current_time = datetime.now(indian_tz).strftime('%H:%M')
     o['Time'] = current_time
-    
+
     # Calculating spot price and setting up range for option analysis
     if index == 'NIFTY':
         cmp = capital_market.market_watch_all_indices().set_index('index').loc['NIFTY 50', 'last']
@@ -57,20 +62,20 @@ try:
         st.subheader('Option Chain')
         st.table(oi.style.highlight_max(axis=0, subset=['CE_OI', 'PE_OI', 'CE_CHG_OI', 'PE_CHG_OI']))
 
-   # Tab 2: OI Analysis
+    # Tab 2: OI Analysis
     with tab2:
         st.subheader('Open Interest Analysis')
-    
+
         # Identify ATM (At-The-Money) strike
         atm_strike = oi.index.get_loc(min(oi.index, key=lambda x: abs(x - cmp)))  # Closest strike to current market price
         strikes_above_below_atm = list(oi.index[max(0, atm_strike - 5):min(len(oi), atm_strike + 6)])  # 5 strikes above and below ATM
-    
+
         # Filter the dataframe to only include these strikes
         oi_atm_filtered = oi.loc[strikes_above_below_atm]
-    
+
         # Plot OI and OI change for 5 strikes above and below ATM in separate subplots
         fig, ax = plt.subplots(2, 2, figsize=(12, 8))  # 2x2 grid for Call and Put OI and changes
-    
+
         # Bar plot for Call OI (Left Column)
         ax[0, 0].bar(oi_atm_filtered.index, oi_atm_filtered['CE_OI'], color='blue', width=10)
         ax[0, 0].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
@@ -78,7 +83,7 @@ try:
         ax[0, 0].set_xlabel('Strike Price')
         ax[0, 0].set_ylabel('Open Interest')
         ax[0, 0].legend()
-    
+
         # Bar plot for Put OI (Right Column)
         ax[0, 1].bar(oi_atm_filtered.index, oi_atm_filtered['PE_OI'], color='red', width=10)
         ax[0, 1].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
@@ -86,7 +91,7 @@ try:
         ax[0, 1].set_xlabel('Strike Price')
         ax[0, 1].set_ylabel('Open Interest')
         ax[0, 1].legend()
-    
+
         # Bar plot for Call OI Change (Bottom Left)
         ax[1, 0].bar(oi_atm_filtered.index, oi_atm_filtered['CE_CHG_OI'], 
                      color=['green' if v > 0 else 'red' for v in oi_atm_filtered['CE_CHG_OI']], width=10)
@@ -95,7 +100,7 @@ try:
         ax[1, 0].set_xlabel('Strike Price')
         ax[1, 0].set_ylabel('OI Change')
         ax[1, 0].legend()
-    
+
         # Bar plot for Put OI Change (Bottom Right)
         ax[1, 1].bar(oi_atm_filtered.index, oi_atm_filtered['PE_CHG_OI'], 
                      color=['green' if v > 0 else 'red' for v in oi_atm_filtered['PE_CHG_OI']], width=10)
@@ -104,29 +109,16 @@ try:
         ax[1, 1].set_xlabel('Strike Price')
         ax[1, 1].set_ylabel('OI Change')
         ax[1, 1].legend()
-    
+
         # Adjust the layout for better spacing
         plt.tight_layout()
-    
+
         # Display the plots
         st.pyplot(fig)
-    
-        # Create a table with strike prices, Call OI, Call OI Change, Put OI, and Put OI Change
-        oi_atm_filtered_table = oi_atm_filtered[['CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI']].copy()
-    
-        # Get current time in the desired format (hh:mm am/pm)
-        current_time_ampm = datetime.now().strftime('%I:%M %p')
-        oi_atm_filtered_table['Time'] = current_time_ampm
-    
-        # Apply color formatting for OI changes: green for positive, red for negative
-        def color_positive_negative(val):
-            color = 'green' if val > 0 else 'red' if val < 0 else 'black'
-            return f'color: {color}'
-    
-        # Display the table with conditional formatting for OI changes
-        st.table(oi_atm_filtered_table.style.applymap(color_positive_negative, subset=['CE_CHG_OI', 'PE_CHG_OI']))
 
-
+        # Display OI table with color formatting for OI changes
+        st.table(oi_atm_filtered[['CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI']].style.applymap(
+            lambda val: 'color: green' if val > 0 else 'color: red' if val < 0 else 'color: black'))
 
     # Tab 4: OI-based Buy/Sell Signal
     with tab4:
@@ -154,12 +146,24 @@ try:
         # Select only the top 5 strikes with the most significant change in OI
         oi_top_5 = oi_sorted.head(9)
 
-        # Create signal_table and include CE_LTP and PE_LTP columns
-        signal_table = oi_top_5[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal']].style.applymap(
+        # Display the table with buy/sell signals
+        st.table(oi_top_5[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal']].style.applymap(
             lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
             subset=['Signal']
-        )
-        st.table(signal_table)
+        ))
+
+        # Storing signals in session state for history tracking
+        if 'signal_history' not in st.session_state:
+            st.session_state.signal_history = pd.DataFrame(columns=['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI', 'Signal', 'Time'])
+
+        # Append the new signal data to the signal history DataFrame
+        st.session_state.signal_history = pd.concat([st.session_state.signal_history, oi_top_5.reset_index()[['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'PE_OI', 'PE_CHG_OI', 'Signal', 'Time']]])
+
+    # Tab 5: Signal History
+    with tab5:
+        st.subheader('Signal History')
+        # Display signal history
+        st.dataframe(st.session_state.signal_history)
 
     # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
     st.write(index)
