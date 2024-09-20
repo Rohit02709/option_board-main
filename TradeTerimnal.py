@@ -60,8 +60,22 @@ try:
         range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
         oi = o.loc[range[1]:range[0]]
 
-    # Existing Tabs (Tab1, Tab2, Tab4, Tab5, Tab6) will remain the same...
-    # <--- Your existing code goes here --->
+    # ---- Signal Generation (For Trading) ----
+    # Example signal generation logic (can be customized)
+    def generate_signal(row):
+        # Example conditions for buy/sell signals
+        if row['CE_CHG_OI'] > 0 and row['CE_LTP'] > row['CE_LTP'].shift(1):  # Buy CE signal condition
+            return 'BUY CE'
+        elif row['PE_CHG_OI'] > 0 and row['PE_LTP'] > row['PE_LTP'].shift(1):  # Buy PE signal condition
+            return 'BUY PE'
+        elif row['CE_CHG_OI'] < 0 and row['CE_LTP'] < row['CE_LTP'].shift(1):  # Sell CE signal condition
+            return 'SELL CE'
+        elif row['PE_CHG_OI'] < 0 and row['PE_LTP'] < row['PE_LTP'].shift(1):  # Sell PE signal condition
+            return 'SELL PE'
+        return 'NO SIGNAL'  # Default when no condition is met
+
+    # Apply signal generation
+    oi['Signal'] = oi.apply(generate_signal, axis=1)
 
     # Tab 7: Virtual Trading Terminal
     with tab7:
