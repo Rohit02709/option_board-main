@@ -229,6 +229,67 @@ try:
         st.table(oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Enhanced_Signal']].style.applymap(
             lambda val: 'color: green' if 'BUY' in val else 'color: black', subset=['Enhanced_Signal']
         ))
+# ... existing code above ...
+
+# Create a new tab for the Trading Terminal
+tab_terminal = st.tabs(["Trading Terminal"])
+
+    with tab_terminal:
+        st.subheader('Virtual Trading Terminal')
+    
+        # Initialize portfolio if it doesn't exist
+        if 'portfolio' not in st.session_state:
+            st.session_state.portfolio = pd.DataFrame(columns=['Strike_Price', 'Option_Type', 'Quantity', 'Entry_Price'])
+    
+        # Function to execute trade
+        def execute_trade(option_type, strike_price, quantity, entry_price):
+            trade = {
+                'Strike_Price': strike_price,
+                'Option_Type': option_type,
+                'Quantity': quantity,
+                'Entry_Price': entry_price
+            }
+            st.session_state.portfolio = st.session_state.portfolio.append(trade, ignore_index=True)
+    
+        # Display current portfolio
+        st.write("### Current Portfolio")
+        if not st.session_state.portfolio.empty:
+            st.dataframe(st.session_state.portfolio, use_container_width=True)
+        else:
+            st.write("No trades executed yet.")
+    
+        # Section to execute trades based on signals
+        st.write("### Execute Trade Based on Signal")
+    
+        # Select signal from signal history
+        selected_signal = st.selectbox("Select Signal", ["", "BUY CE", "BUY PE"])
+        quantity = st.number_input("Enter Quantity", min_value=1, step=1)
+    
+        # Button for executing the trade
+        if st.button("Execute Trade"):
+            if selected_signal == "BUY CE":
+                strike_price = oi.loc[oi['Signal'] == "BUY CE", 'CE_LTP'].index[0]  # Get the strike price for CE
+                entry_price = oi.loc[strike_price, 'CE_LTP']
+                execute_trade('CE', strike_price, quantity, entry_price)
+                st.success(f"Executed BUY CE for Strike Price: {strike_price} at Entry Price: {entry_price}")
+    
+            elif selected_signal == "BUY PE":
+                strike_price = oi.loc[oi['Signal'] == "BUY PE", 'PE_LTP'].index[0]  # Get the strike price for PE
+                entry_price = oi.loc[strike_price, 'PE_LTP']
+                execute_trade('PE', strike_price, quantity, entry_price)
+                st.success(f"Executed BUY PE for Strike Price: {strike_price} at Entry Price: {entry_price}")
+    
+        # Calculate and display total profit/loss
+        if not st.session_state.portfolio.empty:
+            total_profit_loss = 0
+            for index, row in st.session_state.portfolio.iterrows():
+                current_price = oi.loc[row['Strike_Price'], 'CE_LTP'] if row['Option_Type'] == 'CE' else oi.loc[row['Strike_Price'], 'PE_LTP']
+                profit_loss = (current_price - row['Entry_Price']) * row['Quantity']
+                total_profit_loss += profit_loss
+    
+            st.write(f"### Total Profit/Loss: {total_profit_loss:.2f}")
+    
+# ... existing code below ...
 
 except Exception as e:
     st.error(f"An error occurred: {e}")
