@@ -60,105 +60,121 @@ try:
         range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
         oi = o.loc[range[1]:range[0]]
 
-    # ---- New Tab for Enhanced OI-based Buy/Sell Signal (Tab 5) ----
-    with tab5:
-        st.subheader('Enhanced OI-based Buy/Sell Signal')
+# ---- Enhanced OI-based Buy/Sell Signal (Tab 5) ----
+with tab5:
+    st.subheader('Enhanced OI-based Buy/Sell Signal (ATM Strikes)')
 
-        # Example signal generation logic without using shift()
-        def generate_signal(row):
-            # Simple condition based on changes in OI and LTP
-            if row['CE_CHG_OI'] > 0 and row['CE_LTP'] > 0:  # Buy CE signal condition
-                return 'BUY CE'
-            elif row['PE_CHG_OI'] > 0 and row['PE_LTP'] > 0:  # Buy PE signal condition
-                return 'BUY PE'
-            elif row['CE_CHG_OI'] < 0 and row['CE_LTP'] < 0:  # Sell CE signal condition
-                return 'SELL CE'
-            elif row['PE_CHG_OI'] < 0 and row['PE_LTP'] < 0:  # Sell PE signal condition
-                return 'SELL PE'
-            return 'NO SIGNAL'  # Default when no condition is met
+    # Helper function to find the closest two strikes around ATM
+    def get_atm_strikes(oi, cmp):
+        # Find the strike prices closest to the current market price (cmp)
+        strikes = oi.index
+        atm_strike = min(strikes, key=lambda x: abs(x - cmp))
 
-        # Apply signal generation
-        oi['Signal'] = oi.apply(generate_signal, axis=1)
+        # Get two strikes: ATM and the one immediately above it
+        nearest_strikes = sorted([atm_strike, atm_strike + (strikes[1] - strikes[0])])  # Closest two strikes
+        return nearest_strikes
 
-        # Display the oi DataFrame with signals
-        st.write("### OI Data with Buy/Sell Signals")
-        st.dataframe(oi)
+    # Get the two strikes around the ATM price
+    atm_strikes = get_atm_strikes(oi, cmp)
 
-        # Filter rows that have a signal (excluding 'NO SIGNAL')
-        signals = oi[oi['Signal'] != 'NO SIGNAL']
+    # Filter oi DataFrame to only include the selected two ATM strikes
+    atm_oi = oi.loc[atm_strikes]
 
-        st.write("### Signals Generated")
-        st.table(signals[['CE_OI', 'PE_OI', 'CE_LTP', 'PE_LTP', 'Signal']])
+    # Signal generation logic for the filtered ATM strikes
+    def generate_atm_signal(row):
+        if row['CE_CHG_OI'] > 0 and row['CE_LTP'] > 0:  # Buy CE signal condition
+            return 'BUY CE'
+        elif row['PE_CHG_OI'] > 0 and row['PE_LTP'] > 0:  # Buy PE signal condition
+            return 'BUY PE'
+        elif row['CE_CHG_OI'] < 0 and row['CE_LTP'] < 0:  # Sell CE signal condition
+            return 'SELL CE'
+        elif row['PE_CHG_OI'] < 0 and row['PE_LTP'] < 0:  # Sell PE signal condition
+            return 'SELL PE'
+        return 'NO SIGNAL'  # Default when no condition is met
 
-        # Allow the user to download the signals as a CSV
-        csv = signals.to_csv().encode('utf-8')
-        st.download_button("Download Signal Data", data=csv, file_name='signals.csv', mime='text/csv')
+    # Apply signal generation only to the two ATM strikes
+    atm_oi['Signal'] = atm_oi.apply(generate_atm_signal, axis=1)
 
-    # ---- New Tab for Virtual Trading Terminal (Tab 7) ----
-    with tab7:
-        st.subheader('Virtual Trading Terminal')
+    # Display the filtered oi DataFrame with signals
+    st.write("### OI Data with Buy/Sell Signals for ATM Strikes")
+    st.dataframe(atm_oi)
 
-        # Allow user to define capital
-        capital = st.sidebar.number_input('Enter Capital Amount', value=1000000)
+    # Filter rows that have a signal (excluding 'NO SIGNAL')
+    atm_signals = atm_oi[atm_oi['Signal'] != 'NO SIGNAL']
 
-        # Lot sizes based on index
-        lot_size = 25 if index in ['NIFTY', 'FINNIFTY'] else 15
+    st.write("### Signals Generated for ATM Strikes")
+    st.table(atm_signals[['CE_OI', 'PE_OI', 'CE_LTP', 'PE_LTP', 'Signal']])
 
-        # Define a function to execute virtual trades
-        def execute_trade(signal, cmp, lot_size):
-            entry_price = cmp
-            target_price = entry_price + np.random.uniform(10, 30)  # Target range: 10-30 points
-            stop_loss_price = entry_price - 10  # Initial stop loss set at 10 points below entry price
+    # Allow the user to download the signals as a CSV
+    atm_csv = atm_signals.to_csv().encode('utf-8')
+    st.download_button("Download ATM Signal Data", data=atm_csv, file_name='atm_signals.csv', mime='text/csv')
 
-            trade = {
-                'Signal': signal,
-                'Entry_Price': entry_price,
-                'Target_Price': target_price,
-                'Stop_Loss_Price': stop_loss_price,
-                'Lot_Size': lot_size,
-                'Status': 'Open'  # Trade is active
-            }
 
-            return trade
+# ---- Virtual Trading Terminal (Tab 7) ----
+with tab7:
+    st.subheader('Virtual Trading Terminal (ATM Strikes)')
 
-        # Initialize trading session state
-        if 'trades' not in st.session_state:
-            st.session_state.trades = []
+    # Allow user to define capital
+    capital = st.sidebar.number_input('Enter Capital Amount', value=1000000)
 
-        # Execute trades based on OI signals
-        for _, row in oi.iterrows():
-            signal = row['Signal']
-            if signal in ['BUY CE', 'BUY PE']:
-                st.session_state.trades.append(execute_trade(signal, cmp, lot_size))
+    # Lot sizes based on index
+    lot_size = 25 if index in ['NIFTY', 'FINNIFTY'] else 15
 
-        # Display current open trades
-        st.write("## Current Open Trades")
-        open_trades_df = pd.DataFrame([trade for trade in st.session_state.trades if trade['Status'] == 'Open'])
-        st.table(open_trades_df)
+    # Function to execute virtual trades based on the signal
+    def execute_trade(signal, cmp, lot_size):
+        entry_price = cmp
+        target_price = entry_price + np.random.uniform(10, 30)  # Target range: 10-30 points
+        stop_loss_price = entry_price - 10  # Initial stop loss set at 10 points below entry price
 
-        # Function to simulate the price movements and check for target or stop loss
-        def update_trades():
-            for trade in st.session_state.trades:
-                # Simulate current price movement (could use real-time data in production)
-                current_price = cmp + np.random.uniform(-5, 5)  # Random price movement
+        trade = {
+            'Signal': signal,
+            'Entry_Price': entry_price,
+            'Target_Price': target_price,
+            'Stop_Loss_Price': stop_loss_price,
+            'Lot_Size': lot_size,
+            'Status': 'Open'  # Trade is active
+        }
 
-                # Check if the target or stop-loss is hit
-                if current_price >= trade['Target_Price']:
-                    trade['Status'] = 'Target Hit'
-                elif current_price <= trade['Stop_Loss_Price']:
-                    trade['Status'] = 'Stop Loss Hit'
-                else:
-                    # Trail the stop loss to maintain 10 points distance from current price
-                    trade['Stop_Loss_Price'] = max(trade['Stop_Loss_Price'], current_price - 10)
+        return trade
 
-        # Button to manually refresh and update trade status
-        if st.button("Update Trades"):
-            update_trades()
+    # Initialize trading session state
+    if 'atm_trades' not in st.session_state:
+        st.session_state.atm_trades = []
 
-        # Display closed trades
-        st.write("## Closed Trades")
-        closed_trades_df = pd.DataFrame([trade for trade in st.session_state.trades if trade['Status'] != 'Open'])
-        st.table(closed_trades_df)
+    # Execute trades based on OI signals for ATM strikes
+    for _, row in atm_oi.iterrows():
+        signal = row['Signal']
+        if signal in ['BUY CE', 'BUY PE']:
+            st.session_state.atm_trades.append(execute_trade(signal, cmp, lot_size))
+
+    # Display current open trades
+    st.write("## Current Open Trades (ATM Strikes)")
+    open_trades_df = pd.DataFrame([trade for trade in st.session_state.atm_trades if trade['Status'] == 'Open'])
+    st.table(open_trades_df)
+
+    # Function to simulate the price movements and check for target or stop loss
+    def update_atm_trades():
+        for trade in st.session_state.atm_trades:
+            # Simulate current price movement (could use real-time data in production)
+            current_price = cmp + np.random.uniform(-5, 5)  # Random price movement
+
+            # Check if the target or stop-loss is hit
+            if current_price >= trade['Target_Price']:
+                trade['Status'] = 'Target Hit'
+            elif current_price <= trade['Stop_Loss_Price']:
+                trade['Status'] = 'Stop Loss Hit'
+            else:
+                # Trail the stop loss to maintain 10 points distance from current price
+                trade['Stop_Loss_Price'] = max(trade['Stop_Loss_Price'], current_price - 10)
+
+    # Button to manually refresh and update trade status
+    if st.button("Update Trades"):
+        update_atm_trades()
+
+    # Display closed trades
+    st.write("## Closed Trades (ATM Strikes)")
+    closed_trades_df = pd.DataFrame([trade for trade in st.session_state.atm_trades if trade['Status'] != 'Open'])
+    st.table(closed_trades_df)
 
 except Exception as e:
     st.error(f"An error occurred: {e}")
