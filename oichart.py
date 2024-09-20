@@ -181,54 +181,65 @@ try:
     col2.metric('**PCR:**', pcr)
     
     # Tab 6: Enhanced OI-based Buy/Sell Signal (moved from Tab 4)
+  # Tab 6: Enhanced OI-based Buy/Sell Signal (moved from Tab 4)
     with tab6:
         st.subheader('Enhanced OI-based Buy/Sell Signal')
-
-        # Additional parameters like volume, IV, greeks, etc.
-        if 'CALLS_volume' in option.columns and 'PUTS_volume' in option.columns:
-            option_volume = option['CALLS_volume'] + option['PUTS_volume']  # Assuming volume data is available
-            oi['Volume'] = option_volume
-        else:
-            oi['Volume'] = 0
-
-        if 'Implied_Volatility' in option.columns:
-            iv = option['Implied_Volatility']  # Assuming IV data is available
-            oi['Implied_Volatility'] = iv
-        else:
-            oi['Implied_Volatility'] = 0
-
-        oi['PCR'] = oi['PE_OI'] / oi['CE_OI']
-
-        # Option Greeks
-        # greeks_data = greeks.get_option_greeks(index, exp)
-        # oi['Delta'] = greeks_data['Delta']
-        # oi['Gamma'] = greeks_data['Gamma']
-        # oi['Theta'] = greeks_data['Theta']
-        # oi['Vega'] = greeks_data['Vega']
-
-        def enhanced_signal(row):
-            """
-            Enhanced Signal Generation based on OI change, Volume, IV, and Greeks.
-            """
-            if row['PE_CHG_OI'] > row['CE_CHG_OI'] * 2 and row['Volume'] > 1000 and row['Implied_Volatility'] > 20:
-                return "STRONG BUY CE"
-            elif row['CE_CHG_OI'] > row['PE_CHG_OI'] * 2 and row['Volume'] > 1000 and row['Implied_Volatility'] > 20:
-                return "STRONG BUY PE"
-            # elif row['Gamma'] > 0.5 and row['Theta'] < 0 and row['Volume'] > 1000:
-            #     return "BUY Gamma"
+    
+        # Fetch option data
+        oi = fetch_data()
+    
+        if oi is not None:
+            # Additional parameters like volume, IV, etc.
+            if 'CALLS_volume' in option.columns and 'PUTS_volume' in option.columns:
+                option_volume = option['CALLS_volume'] + option['PUTS_volume']  # Assuming volume data is available
+                oi['Volume'] = option_volume
             else:
-                return "HOLD"
+                oi['Volume'] = 0  # Default value if volume data is missing
+    
+            if 'Implied_Volatility' in option.columns:
+                iv = option['Implied_Volatility']  # Assuming IV data is available
+                oi['Implied_Volatility'] = iv
+            else:
+                oi['Implied_Volatility'] = 0  # Default value if IV data is missing
+    
+            # Calculate Put/Call Ratio (PCR)
+            oi['PCR'] = oi['PE_OI'] / oi['CE_OI']
+    
+            # Option Greeks (Currently commented out; you can uncomment if needed later)
+            # greeks_data = greeks.get_option_greeks(index, exp)
+            # oi['Delta'] = greeks_data['Delta']
+            # oi['Gamma'] = greeks_data['Gamma']
+            # oi['Theta'] = greeks_data['Theta']
+            # oi['Vega'] = greeks_data['Vega']
+    
+            # Adjusted enhanced signal logic with lower thresholds for intraday trading
+            def enhanced_signal(row):
+                """
+                Enhanced Signal Generation based on OI change, Volume, and IV.
+                Thresholds adjusted for intraday trading.
+                """
+                if row['PE_CHG_OI'] > row['CE_CHG_OI'] * 2 and row['Volume'] > 500 and row['Implied_Volatility'] > 15:
+                    return "STRONG BUY CE"
+                elif row['CE_CHG_OI'] > row['PE_CHG_OI'] * 2 and row['Volume'] > 500 and row['Implied_Volatility'] > 15:
+                    return "STRONG BUY PE"
+                else:
+                    return "HOLD"
+    
+            # Apply the enhanced signal generation logic
+            oi['Enhanced_Signal'] = oi.apply(enhanced_signal, axis=1)
+    
+            # Sort based on Volume and IV for more relevant entries
+            oi_sorted = oi.sort_values(by=['Volume', 'Implied_Volatility'], ascending=False).head(10)
+    
+            # Display the resulting table
+            st.table(
+                oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Enhanced_Signal']]
+                .style.applymap(lambda val: 'color: green' if 'BUY' in val else 'color: black', subset=['Enhanced_Signal'])
+            )
+        else:
+            st.error("Error fetching option data")
 
-        # Apply enhanced signal generation
-        oi['Enhanced_Signal'] = oi.apply(enhanced_signal, axis=1)
 
-        # Sort and show the top 10 most active strikes
-        oi_sorted = oi.sort_values(by=['Volume', 'Implied_Volatility'], ascending=False).head(10)
-
-        # Display the table
-        st.table(oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Enhanced_Signal']].style.applymap(
-            lambda val: 'color: green' if 'BUY' in val else 'color: black', subset=['Enhanced_Signal']
-        ))
 
 except Exception as e:
     st.error(f"An error occurred: {e}")
