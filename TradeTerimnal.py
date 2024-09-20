@@ -60,24 +60,41 @@ try:
         range = (int(np.round(cmp / 50.0)) * 50) + 900, (int(np.round(cmp / 50.0)) * 50) - 900
         oi = o.loc[range[1]:range[0]]
 
-    # ---- Signal Generation (For Trading) ----
-    # Example signal generation logic (can be customized)
-    def generate_signal(row):
-        # Example conditions for buy/sell signals
-        if row['CE_CHG_OI'] > 0 and row['CE_LTP'] > row['CE_LTP'].shift(1):  # Buy CE signal condition
-            return 'BUY CE'
-        elif row['PE_CHG_OI'] > 0 and row['PE_LTP'] > row['PE_LTP'].shift(1):  # Buy PE signal condition
-            return 'BUY PE'
-        elif row['CE_CHG_OI'] < 0 and row['CE_LTP'] < row['CE_LTP'].shift(1):  # Sell CE signal condition
-            return 'SELL CE'
-        elif row['PE_CHG_OI'] < 0 and row['PE_LTP'] < row['PE_LTP'].shift(1):  # Sell PE signal condition
-            return 'SELL PE'
-        return 'NO SIGNAL'  # Default when no condition is met
+    # ---- New Tab for Enhanced OI-based Buy/Sell Signal (Tab 5) ----
+    with tab5:
+        st.subheader('Enhanced OI-based Buy/Sell Signal')
 
-    # Apply signal generation
-    oi['Signal'] = oi.apply(generate_signal, axis=1)
+        # Example signal generation logic without using shift()
+        def generate_signal(row):
+            # Simple condition based on changes in OI and LTP
+            if row['CE_CHG_OI'] > 0 and row['CE_LTP'] > 0:  # Buy CE signal condition
+                return 'BUY CE'
+            elif row['PE_CHG_OI'] > 0 and row['PE_LTP'] > 0:  # Buy PE signal condition
+                return 'BUY PE'
+            elif row['CE_CHG_OI'] < 0 and row['CE_LTP'] < 0:  # Sell CE signal condition
+                return 'SELL CE'
+            elif row['PE_CHG_OI'] < 0 and row['PE_LTP'] < 0:  # Sell PE signal condition
+                return 'SELL PE'
+            return 'NO SIGNAL'  # Default when no condition is met
 
-    # Tab 7: Virtual Trading Terminal
+        # Apply signal generation
+        oi['Signal'] = oi.apply(generate_signal, axis=1)
+
+        # Display the oi DataFrame with signals
+        st.write("### OI Data with Buy/Sell Signals")
+        st.dataframe(oi)
+
+        # Filter rows that have a signal (excluding 'NO SIGNAL')
+        signals = oi[oi['Signal'] != 'NO SIGNAL']
+
+        st.write("### Signals Generated")
+        st.table(signals[['CE_OI', 'PE_OI', 'CE_LTP', 'PE_LTP', 'Signal']])
+
+        # Allow the user to download the signals as a CSV
+        csv = signals.to_csv().encode('utf-8')
+        st.download_button("Download Signal Data", data=csv, file_name='signals.csv', mime='text/csv')
+
+    # ---- New Tab for Virtual Trading Terminal (Tab 7) ----
     with tab7:
         st.subheader('Virtual Trading Terminal')
 
@@ -148,4 +165,4 @@ except Exception as e:
 
 # Refresh every 3 minutes
 time.sleep(180)  # Wait for 180 seconds
-st.experimental_rerun()  # Re-run the script to refresh the data
+st.experimental_rerun()
