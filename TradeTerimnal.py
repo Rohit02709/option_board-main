@@ -6,14 +6,15 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import time
-import pytz
+import pytz  # New import for handling Indian time zone
+# from nselib import greeks
 
 # Add title of the web-app
 st.title(':red[NSE] **Option Dashboard**')
 st.header('Option Analysis', divider='rainbow')
 
 # Initialize Indian timezone
-indian_tz = pytz.timezone('Asia/Kolkata')
+indian_tz = pytz.timezone('Asia/Kolkata')  # Set Indian Time Zone
 
 # Create some tabs for option analysis
 tab1, tab2, tab4, tab5, tab6 = st.tabs([
@@ -63,18 +64,25 @@ try:
         st.subheader('Option Chain')
         st.table(oi.style.highlight_max(axis=0, subset=['CE_OI', 'PE_OI', 'CE_CHG_OI', 'PE_CHG_OI']))
 
-    # Tab 2: OI Analysis
+    # Tab 2: OI Analysis with additional columns for Time, CE_LTP, and PE_LTP
     with tab2:
         st.subheader('Open Interest Analysis')
 
-        atm_strike = oi.index.get_loc(min(oi.index, key=lambda x: abs(x - cmp)))
-        strikes_above_below_atm = list(oi.index[max(0, atm_strike - 5):min(len(oi), atm_strike + 6)])
+        # Identify ATM (At-The-Money) strike
+        atm_strike = oi.index.get_loc(min(oi.index, key=lambda x: abs(x - cmp)))  # Closest strike to current market price
+        strikes_above_below_atm = list(oi.index[max(0, atm_strike - 5):min(len(oi), atm_strike + 6)])  # 5 strikes above and below ATM
+
+        # Filter the dataframe to only include these strikes
         oi_atm_filtered = oi.loc[strikes_above_below_atm]
+
+        # Add columns for CE_LTP, PE_LTP, and Time
         oi_atm_filtered['CE_LTP'] = oi.loc[oi_atm_filtered.index, 'CE_LTP']
         oi_atm_filtered['PE_LTP'] = oi.loc[oi_atm_filtered.index, 'PE_LTP']
         oi_atm_filtered['Time'] = current_time
 
+        # Plot OI and OI change for 5 strikes above and below ATM in separate subplots
         fig, ax = plt.subplots(2, 2, figsize=(12, 8))
+
         ax[0, 0].bar(oi_atm_filtered.index, oi_atm_filtered['CE_OI'], color='blue', width=10)
         ax[0, 0].axvline(x=cmp, color='black', linestyle='--', label='Spot Price')
         ax[0, 0].set_title('Call OI')
@@ -87,16 +95,21 @@ try:
         ax[1, 1].bar(oi_atm_filtered.index, oi_atm_filtered['PE_CHG_OI'], 
                      color=['green' if v > 0 else 'red' for v in oi_atm_filtered['PE_CHG_OI']], width=10)
 
+        # Show plots
         st.pyplot(fig)
 
+        # Display the filtered table with OI, OI Change, CE_LTP, PE_LTP, and Time
         oi_atm_filtered_table = oi_atm_filtered[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Time']].copy()
+
+        # Apply color formatting for OI changes
         def color_positive_negative(val):
             color = 'green' if val > 0 else 'red' if val < 0 else 'black'
             return f'color: {color}'
 
+        # Display the table with conditional formatting
         st.table(oi_atm_filtered_table.style.applymap(color_positive_negative, subset=['CE_CHG_OI', 'PE_CHG_OI']))
 
-    # Tab 4: OI-based Buy/Sell Signal
+    # Tab 4: OI-based Buy/Sell Signal (unchanged)
     with tab4:
         st.subheader('OI-based Buy/Sell Signal')
 
@@ -108,37 +121,49 @@ try:
             else:
                 return "HOLD"
 
+        # Apply the signal generation function
         oi['Signal'] = oi.apply(generate_signal, axis=1)
+
+        # Sort by the absolute value of change in OI (largest change first)
         oi_sorted = oi.reindex(oi[['CE_CHG_OI', 'PE_CHG_OI']].abs().sum(axis=1).sort_values(ascending=False).index)
+
+        # Select only the top 5 strikes with the most significant change in OI
         oi_top_5 = oi_sorted.head(9)
 
+        # Create signal_table and include CE_LTP and PE_LTP columns
         signal_table = oi_top_5[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal']].style.applymap(
             lambda val: 'color: green' if val == 'BUY CE' else 'color: red' if val == 'BUY PE' else 'color: black',
             subset=['Signal']
         )
         st.table(signal_table)
 
-    # Tab 5: Signal History
+    # Tab 5: Signal History with Time, CE_LTP, PE_LTP, and Color Coding
     with tab5:
         st.subheader('Signal History')
 
+        # Initialize signal history if it doesn't exist
         if 'signal_history' not in st.session_state:
             st.session_state.signal_history = pd.DataFrame(columns=[
                 'Strike_Price', 'CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Time'
             ])
 
+        # Generate current signals
         current_signals = oi[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Time']].copy()
         current_signals['Strike_Price'] = current_signals.index
+
+        # Append new signals to the history
         st.session_state.signal_history = pd.concat([st.session_state.signal_history, current_signals], ignore_index=True)
 
+        # Display the updated signal history DataFrame with color coding
         st.dataframe(
             st.session_state.signal_history.style.applymap(
                 lambda val: 'color: green' if 'BUY CE' in val else 'color: red' if 'BUY PE' in val else 'color: black',
                 subset=['Signal']
             ),
-            use_container_width=True
+            use_container_width=True  # This adjusts the table width based on the container width
         )
 
+        # Add download button for the CSV file
         csv = st.session_state.signal_history.to_csv(index=False)
         st.download_button(
             label="Download Signal History",
@@ -147,99 +172,66 @@ try:
             mime='text/csv'
         )
 
-    # Additional metrics: Spot price and PCR
+
+    # Adding additional metrics: Spot price and PCR (Put-Call Ratio)
     st.write(index)
     col1, col2 = st.columns(2)
     col1.metric('**Spot price**', cmp)
     pcr = np.round(o.PE_OI.sum() / o.CE_OI.sum(), 2)
     col2.metric('**PCR:**', pcr)
 
-    # Tab 6: Enhanced OI-based Buy/Sell Signal
+    # Tab 6: Enhanced OI-based Buy/Sell Signal (moved from Tab 4)
     with tab6:
         st.subheader('Enhanced OI-based Buy/Sell Signal')
 
+        # Additional parameters like volume, IV, greeks, etc.
         if 'CALLS_volume' in option.columns and 'PUTS_volume' in option.columns:
-            option_volume = option['CALLS_volume'] + option['PUTS_volume']
+            option_volume = option['CALLS_volume'] + option['PUTS_volume']  # Assuming volume data is available
             oi['Volume'] = option_volume
         else:
             oi['Volume'] = 0
 
         if 'Implied_Volatility' in option.columns:
-            iv = option['Implied_Volatility']
+            iv = option['Implied_Volatility']  # Assuming IV data is available
             oi['Implied_Volatility'] = iv
         else:
             oi['Implied_Volatility'] = 0
 
         oi['PCR'] = oi['PE_OI'] / oi['CE_OI']
 
+        # Option Greeks
+        # greeks_data = greeks.get_option_greeks(index, exp)
+        # oi['Delta'] = greeks_data['Delta']
+        # oi['Gamma'] = greeks_data['Gamma']
+        # oi['Theta'] = greeks_data['Theta']
+        # oi['Vega'] = greeks_data['Vega']
+
         def enhanced_signal(row):
+            """
+            Enhanced Signal Generation based on OI change, Volume, IV, and Greeks.
+            """
             if row['PE_CHG_OI'] > row['CE_CHG_OI'] * 2 and row['Volume'] > 1000 and row['Implied_Volatility'] > 20:
                 return "STRONG BUY CE"
             elif row['CE_CHG_OI'] > row['PE_CHG_OI'] * 2 and row['Volume'] > 1000 and row['Implied_Volatility'] > 20:
                 return "STRONG BUY PE"
+            # elif row['Gamma'] > 0.5 and row['Theta'] < 0 and row['Volume'] > 1000:
+            #     return "BUY Gamma"
             else:
                 return "HOLD"
 
+        # Apply enhanced signal generation
         oi['Enhanced_Signal'] = oi.apply(enhanced_signal, axis=1)
+
+        # Sort and show the top 10 most active strikes
         oi_sorted = oi.sort_values(by=['Volume', 'Implied_Volatility'], ascending=False).head(10)
 
+        # Display the table
         st.table(oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Enhanced_Signal']].style.applymap(
             lambda val: 'color: green' if 'BUY' in val else 'color: black', subset=['Enhanced_Signal']
         ))
 
-    # Trading Terminal Tab
-    tab_terminal = st.tabs(["Trading Terminal"])
-
-    with tab_terminal:
-        st.subheader('Virtual Trading Terminal')
-
-        if 'portfolio' not in st.session_state:
-            st.session_state.portfolio = pd.DataFrame(columns=['Strike_Price', 'Option_Type', 'Quantity', 'Entry_Price'])
-
-        def execute_trade(option_type, strike_price, quantity, entry_price):
-            trade = {
-                'Strike_Price': strike_price,
-                'Option_Type': option_type,
-                'Quantity': quantity,
-                'Entry_Price': entry_price
-            }
-            st.session_state.portfolio = st.session_state.portfolio.append(trade, ignore_index=True)
-
-        st.write("### Current Portfolio")
-        if not st.session_state.portfolio.empty:
-            st.dataframe(st.session_state.portfolio, use_container_width=True)
-        else:
-            st.write("No trades executed yet.")
-
-        st.write("### Execute Trade Based on Signal")
-        selected_signal = st.selectbox("Select Signal", ["", "BUY CE", "BUY PE"])
-        quantity = st.number_input("Enter Quantity", min_value=1, step=1)
-
-        if st.button("Execute Trade"):
-            if selected_signal == "BUY CE":
-                strike_price = oi.loc[oi['Signal'] == "BUY CE", 'CE_LTP'].index[0]
-                entry_price = oi.loc[strike_price, 'CE_LTP']
-                execute_trade('CE', strike_price, quantity, entry_price)
-                st.success(f"Executed BUY CE for Strike Price: {strike_price} at Entry Price: {entry_price}")
-
-            elif selected_signal == "BUY PE":
-                strike_price = oi.loc[oi['Signal'] == "BUY PE", 'PE_LTP'].index[0]
-                entry_price = oi.loc[strike_price, 'PE_LTP']
-                execute_trade('PE', strike_price, quantity, entry_price)
-                st.success(f"Executed BUY PE for Strike Price: {strike_price} at Entry Price: {entry_price}")
-
-        if not st.session_state.portfolio.empty:
-            total_profit_loss = 0
-            for index, row in st.session_state.portfolio.iterrows():
-                current_price = oi.loc[row['Strike_Price'], 'CE_LTP'] if row['Option_Type'] == 'CE' else oi.loc[row['Strike_Price'], 'PE_LTP']
-                profit_loss = (current_price - row['Entry_Price']) * row['Quantity']
-                total_profit_loss += profit_loss
-
-            st.write(f"### Total Profit/Loss: {total_profit_loss:.2f}")
-
 except Exception as e:
     st.error(f"An error occurred: {e}")
-
 # Refresh every 3 minutes
-time.sleep(180)
-st.experimental_rerun()
+time.sleep(180)  # Wait for 180 seconds
+st.experimental_rerun()  # Re-run the script to refresh the data
