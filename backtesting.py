@@ -1,4 +1,3 @@
-# Import necessary libraries
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -19,18 +18,29 @@ if uploaded_file:
         st.dataframe(df.head())
 
         # Ensure all the required columns are present in the data
-        required_columns = ['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Time']
+        required_columns = ['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Outcome', 'Time']
         if not all(column in df.columns for column in required_columns):
             st.error(f"Missing one or more required columns: {required_columns}")
         else:
             # Count number of BUY CE and BUY PE signals per strike price
             signal_counts = df.groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
 
-            # Plotting signal counts for BUY CE and BUY PE
+            # Display signal counts
             st.write("Number of signals per strike price:")
             st.dataframe(signal_counts)
 
-            # Plot the counts of BUY CE and BUY PE using matplotlib
+            # Count wins and losses
+            wins = df[df['Outcome'] == 'Win'].groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
+            losses = df[df['Outcome'] == 'Loss'].groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
+
+            # Display wins and losses
+            st.write("Number of wins per strike price:")
+            st.dataframe(wins)
+
+            st.write("Number of losses per strike price:")
+            st.dataframe(losses)
+
+            # Plotting signal counts for BUY CE and BUY PE
             fig, ax = plt.subplots(figsize=(10, 6))
             signal_counts.plot(kind='bar', stacked=True, ax=ax, color=['green', 'red'])
             ax.set_title("Signal Counts per Strike Price (BUY CE vs BUY PE)")
@@ -38,10 +48,19 @@ if uploaded_file:
             ax.set_ylabel("Number of Signals")
             plt.xticks(rotation=45)
             plt.tight_layout()
+            st.pyplot(fig)
 
-            # Display the plot in Streamlit
+            # Plotting wins and losses
+            fig, ax = plt.subplots(figsize=(10, 6))
+            wins.plot(kind='bar', stacked=True, ax=ax, color='blue', alpha=0.7, label='Wins')
+            losses.plot(kind='bar', stacked=True, ax=ax, color='orange', alpha=0.7, label='Losses')
+            ax.set_title("Wins and Losses per Strike Price (BUY CE vs BUY PE)")
+            ax.set_xlabel("Strike Price")
+            ax.set_ylabel("Number of Signals")
+            plt.xticks(rotation=45)
+            ax.legend()
+            plt.tight_layout()
             st.pyplot(fig)
 
     except Exception as e:
         st.error(f"Error processing the file: {str(e)}")
-
