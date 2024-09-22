@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 import pytz
+import plotly.express as px
 
 # Add title of the web-app
 st.title(':red[NSE] **Backtesting Option Dashboard**')
@@ -64,8 +65,23 @@ if uploaded_file is not None:
         st.write(f"Wins: {wins}")
         st.write(f"Losses: {losses}")
 
-        # Display the first few rows of data with Strike_Price and Signals
-        st.dataframe(backtest_data[['Strike_Price', 'Time', 'Signal']].head(10))
+        # Group data by Strike_Price and Signal for counting
+        signal_counts = backtest_data.groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
+        
+        # Show strike price-wise signal count
+        st.write("Strike Price-wise Signal Count:")
+        st.dataframe(signal_counts)
+
+        # Plotting the number of signals per strike price
+        fig = px.bar(signal_counts.reset_index(), x='Strike_Price', y=['BUY CE', 'BUY PE'],
+                     title="Signals per Strike Price",
+                     labels={'value': 'Number of Signals', 'Strike_Price': 'Strike Price'},
+                     barmode='group')
+        st.plotly_chart(fig)
+
+        # Display the first few rows of data with Strike_Price, Signal, and Signal Prices
+        backtest_data['Signal Price'] = backtest_data.apply(lambda row: row['CE_LTP'] if row['Signal'] == "BUY CE" else (row['PE_LTP'] if row['Signal'] == "BUY PE" else None), axis=1)
+        st.dataframe(backtest_data[['Strike_Price', 'Time', 'Signal', 'Signal Price']].head(10))
 
         # Option to download backtest results as CSV
         csv = backtest_data.to_csv(index=False).encode('utf-8')
