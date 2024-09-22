@@ -1,7 +1,6 @@
 # Import necessary libraries
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import streamlit as st
 
 # Load data from the uploaded file
@@ -43,8 +42,6 @@ if uploaded_file:
             # Display the plot in Streamlit
             st.pyplot(fig)
 
-            # Additional Backtesting Metrics (optional):
-            # You can extend this section to include calculations based on the signal prices (e.g., profit/loss).
-
     except Exception as e:
         st.error(f"Error processing the file: {str(e)}")
+
