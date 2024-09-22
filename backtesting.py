@@ -18,14 +18,28 @@ if uploaded_file:
         st.dataframe(df.head())
 
         # Ensure all the required columns are present in the data
-        required_columns = ['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Outcome', 'Time']
+        required_columns = ['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Time']
         if not all(column in df.columns for column in required_columns):
             st.error(f"Missing one or more required columns: {required_columns}")
         else:
-            # Count number of BUY CE and BUY PE signals per strike price
-            signal_counts = df.groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
+            # Determine wins and losses based on your signals
+            # Assuming 'BUY CE' indicates a long position in CE and 'BUY PE' for PE
+            df['Outcome'] = None
+            
+            # Example logic to define wins/losses (customize based on your strategy)
+            # Adjust the logic based on your criteria for determining win/loss
+            for index, row in df.iterrows():
+                if row['Signal'] == 'BUY CE' and row['CE_LTP'] > row['CE_OI']:  # Example condition for win
+                    df.at[index, 'Outcome'] = 'Win'
+                elif row['Signal'] == 'BUY CE' and row['CE_LTP'] <= row['CE_OI']:
+                    df.at[index, 'Outcome'] = 'Loss'
+                elif row['Signal'] == 'BUY PE' and row['PE_LTP'] > row['PE_OI']:
+                    df.at[index, 'Outcome'] = 'Win'
+                elif row['Signal'] == 'BUY PE' and row['PE_LTP'] <= row['PE_OI']:
+                    df.at[index, 'Outcome'] = 'Loss'
 
-            # Display signal counts
+            # Count number of signals per strike price
+            signal_counts = df.groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
             st.write("Number of signals per strike price:")
             st.dataframe(signal_counts)
 
