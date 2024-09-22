@@ -1,95 +1,50 @@
+# Import necessary libraries
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 import streamlit as st
-from datetime import datetime
-import pytz
-import plotly.express as px
 
-# Add title of the web-app
-st.title(':red[NSE] **Backtesting Option Dashboard**')
-st.header('Backtest OI-based Signals', divider='rainbow')
+# Load data from the uploaded file
+uploaded_file = st.file_uploader("Upload the historical data file for backtesting", type=["csv", "xlsx"])
 
-# Initialize Indian timezone
-indian_tz = pytz.timezone('Asia/Kolkata')  # Set Indian Time Zone
+if uploaded_file:
+    try:
+        # Detect file type and load data accordingly
+        if uploaded_file.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
 
-# Function to generate Buy/Sell signal based on OI changes
-def generate_signal(row):
-    if row['PE_CHG_OI'] > row['CE_CHG_OI'] * 2:
-        return "BUY CE"
-    elif row['CE_CHG_OI'] > row['PE_CHG_OI'] * 2:
-        return "BUY PE"
-    else:
-        return "HOLD"
+        # Display the first few rows of the data for verification
+        st.write("Here are the first few rows of your data:")
+        st.dataframe(df.head())
 
-# Function to calculate backtest performance (win/loss)
-def calculate_backtest_performance(data):
-    wins, losses = 0, 0
-    for index, row in data.iterrows():
-        if row['Signal'] == "BUY CE":
-            if row['CE_LTP'] > row['PE_LTP']:  # Assuming profit when CE LTP rises
-                wins += 1
-            else:
-                losses += 1
-        elif row['Signal'] == "BUY PE":
-            if row['PE_LTP'] > row['CE_LTP']:  # Assuming profit when PE LTP rises
-                wins += 1
-            else:
-                losses += 1
-    total_trades = wins + losses
-    return wins, losses, total_trades
+        # Ensure all the required columns are present in the data
+        required_columns = ['Strike_Price', 'CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal', 'Time']
+        if not all(column in df.columns for column in required_columns):
+            st.error(f"Missing one or more required columns: {required_columns}")
+        else:
+            # Count number of BUY CE and BUY PE signals per strike price
+            signal_counts = df.groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
 
-# Upload CSV file with historical data
-uploaded_file = st.file_uploader("Upload a CSV file for backtesting", type="csv")
+            # Plotting signal counts for BUY CE and BUY PE
+            st.write("Number of signals per strike price:")
+            st.dataframe(signal_counts)
 
-if uploaded_file is not None:
-    # Read uploaded CSV into DataFrame
-    backtest_data = pd.read_csv(uploaded_file)
+            # Plot the counts of BUY CE and BUY PE using matplotlib
+            fig, ax = plt.subplots(figsize=(10, 6))
+            signal_counts.plot(kind='bar', stacked=True, ax=ax, color=['green', 'red'])
+            ax.set_title("Signal Counts per Strike Price (BUY CE vs BUY PE)")
+            ax.set_xlabel("Strike Price")
+            ax.set_ylabel("Number of Signals")
+            plt.xticks(rotation=45)
+            plt.tight_layout()
 
-    # Expected columns for backtesting:
-    # ['Strike_Price', 'CE_OI', 'PE_OI', 'CE_CHG_OI', 'PE_CHG_OI', 'CE_LTP', 'PE_LTP', 'Signal', 'Time']
-    expected_columns = ['Strike_Price', 'CE_OI', 'PE_OI', 'CE_CHG_OI', 'PE_CHG_OI', 'CE_LTP', 'PE_LTP', 'Time']
+            # Display the plot in Streamlit
+            st.pyplot(fig)
 
-    if all(col in backtest_data.columns for col in expected_columns):
-        st.write("File uploaded successfully.")
-        backtest_data['Time'] = pd.to_datetime(backtest_data['Time'])  # Convert 'Time' column to datetime
+            # Additional Backtesting Metrics (optional):
+            # You can extend this section to include calculations based on the signal prices (e.g., profit/loss).
 
-        # Generate signals on historical data
-        backtest_data['Signal'] = backtest_data.apply(generate_signal, axis=1)
-
-        # Calculate backtest performance (win/loss ratio, profit/loss)
-        wins, losses, total_trades = calculate_backtest_performance(backtest_data)
-        win_ratio = (wins / total_trades) * 100 if total_trades > 0 else 0
-
-        # Display performance results
-        st.write(f"Total Trades: {total_trades}")
-        st.write(f"Win Ratio: {win_ratio:.2f}%")
-        st.write(f"Wins: {wins}")
-        st.write(f"Losses: {losses}")
-
-        # Group data by Strike_Price and Signal for counting
-        signal_counts = backtest_data.groupby(['Strike_Price', 'Signal']).size().unstack(fill_value=0)
-        
-        # Show strike price-wise signal count
-        st.write("Strike Price-wise Signal Count:")
-        st.dataframe(signal_counts)
-
-        # Plotting the number of signals per strike price
-        fig = px.bar(signal_counts.reset_index(), x='Strike_Price', y=['BUY CE', 'BUY PE'],
-                     title="Signals per Strike Price",
-                     labels={'value': 'Number of Signals', 'Strike_Price': 'Strike Price'},
-                     barmode='group')
-        st.plotly_chart(fig)
-
-        # Display the first few rows of data with Strike_Price, Signal, and Signal Prices
-        backtest_data['Signal Price'] = backtest_data.apply(lambda row: row['CE_LTP'] if row['Signal'] == "BUY CE" else (row['PE_LTP'] if row['Signal'] == "BUY PE" else None), axis=1)
-        st.dataframe(backtest_data[['Strike_Price', 'Time', 'Signal', 'Signal Price']].head(10))
-
-        # Option to download backtest results as CSV
-        csv = backtest_data.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download Backtest Results",
-            data=csv,
-            file_name='backtest_results.csv',
-            mime='text/csv',
-        )
-    else:
-        st.error("Uploaded file does not contain the required columns for backtesting.")
+    except Exception as e:
+        st.error(f"Error processing the file: {str(e)}")
