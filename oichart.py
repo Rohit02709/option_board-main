@@ -17,10 +17,12 @@ st.header('Option Analysis', divider='rainbow')
 indian_tz = pytz.timezone('Asia/Kolkata')  # Set Indian Time Zone
 
 # Create some tabs for option analysis
-tab1, tab2, tab4, tab5, tab6 = st.tabs([
-    "Option Chain", "OI Analysis", "OI-based Buy/Sell Signal", "Signal History", "Enhanced OI-based Buy/Sell Signal"
+#tab1, tab2, tab4, tab5, tab6 = st.tabs([
+#    "Option Chain", "OI Analysis", "OI-based Buy/Sell Signal", "Signal History", "Enhanced OI-based Buy/Sell Signal"
+#])
+tab1, tab2, tab4, tab5, tab6, tab7 = st.tabs([
+    "Option Chain", "OI Analysis", "OI-based Buy/Sell Signal", "Signal History", "Enhanced OI-based Buy/Sell Signal", "OI Change Alert"
 ])
-
 # Create side bar to select index instrument and for expiry day selection
 index = st.sidebar.selectbox("Select index name", ('NIFTY', "BANKNIFTY", "FINNIFTY"))
 ex = st.sidebar.selectbox('Select expiry date', derivatives.expiry_dates_option_index()[index])
@@ -229,7 +231,33 @@ try:
         st.table(oi_sorted[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Volume', 'Implied_Volatility', 'Enhanced_Signal']].style.applymap(
             lambda val: 'color: green' if 'BUY' in val else 'color: black', subset=['Enhanced_Signal']
         ))
-
+    with tab7:
+        st.subheader('OI Change Alert')
+        
+        # Calculate the ratio of PE_OI change to CE_OI change
+        oi['PE_to_CE_OI_Change_Ratio'] = oi['PE_CHG_OI'] / oi['CE_CHG_OI']
+        
+        # Generate alerts where the ratio of PE_OI change to CE_OI change is more than 3
+        alert_condition = oi['PE_to_CE_OI_Change_Ratio'] > 3
+        
+        # Filter the strikes where the condition is met
+        alerts = oi[alert_condition].copy()
+        
+        # If there are any alerts, display them
+        if not alerts.empty:
+            st.write("The following strikes have PE_OI change more than 3 times the CE_OI change:")
+            alerts_table = alerts[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'PE_to_CE_OI_Change_Ratio']].copy()
+            
+            # Color coding for easy visualization
+            def highlight_alert(val):
+                return 'background-color: yellow' if val > 3 else ''
+            
+            # Display the table with conditional formatting
+            st.table(alerts_table.style.applymap(highlight_alert, subset=['PE_to_CE_OI_Change_Ratio']))
+        
+        else:
+            st.write("No alerts found where PE OI change is more than 3 times the CE OI change.")
+        
 except Exception as e:
     st.error(f"An error occurred: {e}")
 # Refresh every 3 minutes
