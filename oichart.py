@@ -130,7 +130,7 @@ try:
         oi_sorted = oi.reindex(oi[['CE_CHG_OI', 'PE_CHG_OI']].abs().sum(axis=1).sort_values(ascending=False).index)
 
         # Select only the top 5 strikes with the most significant change in OI
-        oi_top_5 = oi_sorted.head(9)
+        oi_top_5 = oi_sorted.head(18)
 
         # Create signal_table and include CE_LTP and PE_LTP columns
         signal_table = oi_top_5[['CE_OI', 'CE_CHG_OI', 'CE_LTP', 'PE_OI', 'PE_CHG_OI', 'PE_LTP', 'Signal']].style.applymap(
